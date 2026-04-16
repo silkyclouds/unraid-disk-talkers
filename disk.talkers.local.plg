@@ -1,0 +1,91 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name "disk.talkers">
+<!ENTITY author "meaning">
+<!ENTITY version "2026.04.16c">
+<!ENTITY launch "SystemInformation/DiskTalkers">
+<!ENTITY pluginLOC "/boot/config/plugins/&name;">
+<!ENTITY sourceLOC "&pluginLOC;/source">
+<!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
+]>
+<PLUGIN
+  name="&name;"
+  author="&author;"
+  version="&version;"
+  launch="&launch;"
+  icon="hdd-o"
+  min="6.12.0"
+  support="local-only"
+>
+
+<CHANGES>
+###2026.04.16c
+- Cleaned public/local plugin metadata and standardized the published author as
+  `meaning`.
+
+###2026.04.16b
+- Split local development installs from public release packaging.
+- Keeps this manifest for direct local source-tree deploys only.
+
+###2026.04.15a
+- Initial local-only release.
+- Adds a dedicated Disk Talkers page in the Unraid WebUI.
+- Collects probable disk users from file.activity, fuser, Docker metadata, and
+  process inspection.
+</CHANGES>
+
+<FILE Run="/bin/bash">
+<INLINE>
+set -e
+
+mkdir -p "&pluginLOC;"
+mkdir -p "&emhttpLOC;"
+
+if [ ! -d "&sourceLOC;/usr/local/emhttp/plugins/&name;" ]; then
+  echo "Disk Talkers source tree is missing under &sourceLOC;"
+  exit 1
+fi
+
+if [ ! -f "&pluginLOC;/&name;.cfg" ] &amp;&amp; [ -f "&sourceLOC;/boot/config/plugins/&name;/&name;.cfg" ]; then
+  cp "&sourceLOC;/boot/config/plugins/&name;/&name;.cfg" "&pluginLOC;/&name;.cfg"
+fi
+
+rm -rf "&emhttpLOC;"
+mkdir -p "/usr/local/emhttp/plugins"
+cp -R "&sourceLOC;/usr/local/emhttp/plugins/&name;" "/usr/local/emhttp/plugins/"
+
+chmod +x "&emhttpLOC;/scripts/collector.py"
+chmod +x "&emhttpLOC;/scripts/rc.&name;"
+chmod +x "&emhttpLOC;/event/started"
+chmod +x "&emhttpLOC;/event/stopping_svcs"
+
+mkdir -p /tmp/disk.talkers
+
+"&emhttpLOC;/scripts/rc.&name;" restart >/dev/null 2>&amp;1 || true
+
+echo ""
+echo "----------------------------------------------------"
+echo " Disk Talkers installed."
+echo " Version: &version;"
+echo "----------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+set +e
+
+if [ -x "&emhttpLOC;/scripts/rc.&name;" ]; then
+  "&emhttpLOC;/scripts/rc.&name;" stop >/dev/null 2>&amp;1 || true
+fi
+
+rm -rf "&emhttpLOC;"
+rm -rf "&pluginLOC;"
+rm -f "/boot/config/plugins/&name;.plg"
+
+echo "Disk Talkers removed."
+</INLINE>
+</FILE>
+
+</PLUGIN>

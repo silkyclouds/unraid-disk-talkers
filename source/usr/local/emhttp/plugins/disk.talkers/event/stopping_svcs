@@ -1,0 +1,6 @@
+#!/bin/bash
+plugin="disk.talkers"
+
+if [ -x "/usr/local/emhttp/plugins/${plugin}/scripts/rc.${plugin}" ]; then
+  /usr/local/emhttp/plugins/${plugin}/scripts/rc.${plugin} stop >/dev/null 2>&1
+fi

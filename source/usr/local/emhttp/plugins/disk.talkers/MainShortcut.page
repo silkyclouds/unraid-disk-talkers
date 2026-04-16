@@ -1,0 +1,80 @@
+Menu="Main:0"
+Cond="$var['mdState'] == 'STARTED'"
+---
+<?php
+$cfg = @parse_ini_file('/boot/config/plugins/disk.talkers/disk.talkers.cfg') ?: [];
+if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
+    return;
+}
+?>
+<style>
+.dt-main-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(116, 183, 255, 0.16);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(18, 25, 34, 0.96), rgba(13, 19, 27, 0.98));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+}
+
+.dt-main-shortcut-copy {
+  min-width: 0;
+}
+
+.dt-main-shortcut-title {
+  color: #eef2f8;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dt-main-shortcut-sub {
+  margin-top: 4px;
+  color: #98a3b5;
+  font-size: 12px;
+}
+
+.dt-main-shortcut-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(116, 183, 255, 0.26);
+  background: rgba(116, 183, 255, 0.12);
+  color: #eef5ff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dt-main-shortcut-link:hover {
+  background: rgba(116, 183, 255, 0.18);
+  border-color: rgba(116, 183, 255, 0.4);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+@media (max-width: 760px) {
+  .dt-main-shortcut {
+    flex-direction: column;
+    align-items: start;
+  }
+}
+</style>
+<div id="dt-main-shortcut" class="dt-main-shortcut">
+  <div class="dt-main-shortcut-copy">
+    <div class="dt-main-shortcut-title">Disk Talkers</div>
+    <div class="dt-main-shortcut-sub">Open live talkers, spin history, power estimates, and array usage details.</div>
+  </div>
+  <a class="dt-main-shortcut-link" href="/Tools/SystemInformation/DiskTalkers">
+    Open Disk Talkers
+    <i class="fa fa-external-link"></i>
+  </a>
+</div>

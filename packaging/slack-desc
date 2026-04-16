@@ -1,0 +1,8 @@
+disk.talkers: disk.talkers (Unraid Disk Talkers plugin)
+disk.talkers:
+disk.talkers: Adds a dedicated Unraid WebUI page that correlates array and pool
+disk.talkers: disk activity with containers, VMs, user-share access, and recent
+disk.talkers: file paths to explain what is keeping disks spun up.
+disk.talkers:
+disk.talkers: Project URL: __PROJECT_URL__
+disk.talkers:

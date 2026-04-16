@@ -1,0 +1,12 @@
+#!/bin/bash
+plugin="disk.talkers"
+config="/boot/config/plugins/${plugin}/${plugin}.cfg"
+
+if [ -f "$config" ]; then
+  # shellcheck disable=SC1090
+  source "$config"
+fi
+
+if [ "${SERVICE:-enable}" = "enable" ]; then
+  /usr/local/emhttp/plugins/${plugin}/scripts/rc.${plugin} start >/dev/null 2>&1
+fi

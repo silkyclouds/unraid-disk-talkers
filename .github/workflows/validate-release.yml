@@ -1,0 +1,40 @@
+name: Validate release packaging
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up release env
+        run: |
+          cat > release.env <<'EOF'
+          GITHUB_REPO="silkyclouds/unraid-disk-talkers"
+          GITHUB_BRANCH="main"
+          SUPPORT_URL="https://forums.unraid.net/topic/000000-plugin-disk-talkers/"
+          RELEASE_TAG=""
+          PLUGIN_AUTHOR="meaning"
+          WRITE_ROOT_MANIFEST="0"
+          EOF
+
+      - name: Build public artifacts
+        run: ./build-release.sh release.env
+
+      - name: Verify generated artifacts
+        run: |
+          test -f dist/disk.talkers.plg
+          ls -1 dist/disk.talkers-package-*.txz >/dev/null
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: disk-talkers-release-artifacts
+          path: dist/

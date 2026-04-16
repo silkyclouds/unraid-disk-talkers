@@ -1,0 +1,102 @@
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name "disk.talkers">
+<!ENTITY author "meaning">
+<!ENTITY version "2026.04.16c">
+<!ENTITY launch "SystemInformation/DiskTalkers">
+<!ENTITY packageVER "&version;">
+<!ENTITY packageMD5 "4e4a918d1870682be33cc30cf69bc8f5">
+<!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
+<!ENTITY packagefile "&packageName;.txz">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.16c/disk.talkers-package-2026.04.16c-x86_64-1.txz">
+<!ENTITY pluginLOC "/boot/config/plugins/&name;">
+<!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
+]>
+<PLUGIN
+  name="&name;"
+  author="&author;"
+  version="&version;"
+  launch="&launch;"
+  pluginURL="&pluginURL;"
+  icon="hdd-o"
+  min="6.12.0"
+  support="https://github.com/silkyclouds/unraid-disk-talkers/issues"
+>
+
+<CHANGES>
+###2026.04.16c
+- Cleaned plugin metadata and standardized the published author as
+  `meaning`.
+
+###2026.04.16b
+- Added Community Apps release packaging with a generated public `.plg` and `.txz`.
+- Keeps local development installs separate from distributable releases.
+
+###2026.04.15a
+- Initial release.
+- Adds a dedicated Disk Talkers page in the Unraid WebUI.
+- Collects probable disk users from file activity, live PIDs, Docker metadata,
+  and process inspection.
+</CHANGES>
+
+<FILE Name="&pluginLOC;/&packagefile;" Run="upgradepkg --install-new --reinstall">
+<URL>&packageURL;</URL>
+<MD5>&packageMD5;</MD5>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+set -e
+
+mkdir -p "&pluginLOC;"
+mkdir -p /tmp/disk.talkers
+
+if [ ! -f "&pluginLOC;/&name;.cfg" ] &amp;&amp; [ -f "&emhttpLOC;/defaults/&name;.cfg.default" ]; then
+  cp "&emhttpLOC;/defaults/&name;.cfg.default" "&pluginLOC;/&name;.cfg"
+fi
+
+chmod +x "&emhttpLOC;/scripts/collector.py" || true
+chmod +x "&emhttpLOC;/scripts/rc.&name;" || true
+chmod +x "&emhttpLOC;/event/started" || true
+chmod +x "&emhttpLOC;/event/stopping_svcs" || true
+
+if [ -x "&emhttpLOC;/scripts/rc.&name;" ]; then
+  "&emhttpLOC;/scripts/rc.&name;" restart >/dev/null 2>&amp;1 || true
+fi
+
+echo ""
+echo "----------------------------------------------------"
+echo " Disk Talkers installed."
+echo " Version: &version;"
+echo "----------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+set +e
+
+if [ -x "&emhttpLOC;/scripts/rc.&name;" ]; then
+  "&emhttpLOC;/scripts/rc.&name;" stop >/dev/null 2>&amp;1 || true
+fi
+
+removepkg &packageName; >/dev/null 2>&amp;1 || true
+
+for stale in &pluginLOC;/&name;-package-*.txz; do
+  [ -e "$stale" ] || continue
+  if [ "$stale" != "&pluginLOC;/&packagefile;" ]; then
+    rm -f "$stale"
+  fi
+done
+
+rm -rf "&emhttpLOC;"
+rm -rf "&pluginLOC;"
+rm -f "/boot/config/plugins/&name;.plg"
+
+echo "Disk Talkers removed."
+</INLINE>
+</FILE>
+
+</PLUGIN>

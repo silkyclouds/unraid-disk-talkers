@@ -1,0 +1,94 @@
+#!/bin/bash
+plugin="disk.talkers"
+config="/boot/config/plugins/${plugin}/${plugin}.cfg"
+collector="/usr/local/emhttp/plugins/${plugin}/scripts/collector.py"
+pidfile="/var/run/${plugin}.pid"
+
+read_cfg() {
+  if [ -f "$config" ]; then
+    # shellcheck disable=SC1090
+    source "$config"
+  fi
+
+  SERVICE="${SERVICE:-enable}"
+  POLL_INTERVAL="${POLL_INTERVAL:-5}"
+  RECENT_WINDOW="${RECENT_WINDOW:-300}"
+  MAX_TALKERS="${MAX_TALKERS:-5}"
+  STATE_FILE="${STATE_FILE:-/tmp/disk.talkers/state.json}"
+  LOG_FILE="${LOG_FILE:-/var/log/disk.talkers.log}"
+}
+
+is_running() {
+  [ -f "$pidfile" ] || return 1
+  local pid
+  pid="$(cat "$pidfile" 2>/dev/null)"
+  [ -n "$pid" ] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+start() {
+  read_cfg
+
+  if is_running; then
+    echo "Disk Talkers already running"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$STATE_FILE")"
+  mkdir -p /tmp/disk.talkers
+
+  nohup python3 "$collector" \
+    --config "$config" \
+    --state-file "$STATE_FILE" \
+    --interval "$POLL_INTERVAL" \
+    --recent-window "$RECENT_WINDOW" \
+    --max-talkers "$MAX_TALKERS" \
+    >> "$LOG_FILE" 2>&1 &
+
+  echo $! > "$pidfile"
+  echo "Started Disk Talkers"
+}
+
+stop() {
+  if is_running; then
+    kill "$(cat "$pidfile")" 2>/dev/null || true
+    sleep 1
+    kill -9 "$(cat "$pidfile")" 2>/dev/null || true
+  fi
+  rm -f "$pidfile"
+  echo "Stopped Disk Talkers"
+}
+
+restart() {
+  stop >/dev/null 2>&1 || true
+  start
+}
+
+run_once() {
+  read_cfg
+  python3 "$collector" \
+    --once \
+    --config "$config" \
+    --state-file "$STATE_FILE" \
+    --recent-window "$RECENT_WINDOW" \
+    --max-talkers "$MAX_TALKERS"
+}
+
+case "${1:-}" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    restart
+    ;;
+  once)
+    run_once
+    ;;
+  *)
+    echo "usage: $0 start|stop|restart|once"
+    exit 1
+    ;;
+esac
