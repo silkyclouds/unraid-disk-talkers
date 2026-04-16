@@ -10,6 +10,9 @@ or host services are probably keeping each array disk or pool busy.
 Disk Talkers is already testable before Community Apps listing by installing the
 plugin URL directly from Unraid.
 
+Official support thread:
+`https://forums.unraid.net/topic/198305-plugin-disk-talkers/`
+
 ## Install On Unraid
 
 ### WebUI method
@@ -103,7 +106,5 @@ Disk Talkers`.
 
 - The generated package is the CA-ready artifact. The local manifest remains
   separate so local development does not depend on GitHub Releases.
-- Publishing cannot be fully automated from this repo alone because Community
-  Apps still needs a public support thread and a public `.plg` URL.
 - The current public install path is the direct plugin URL above. Community
-  Apps indexing will be added after the plugin support thread is in place.
+  Apps indexing will be added after Community Applications review.

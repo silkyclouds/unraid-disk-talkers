@@ -19,7 +19,7 @@ jobs:
           cat > release.env <<'EOF'
           GITHUB_REPO="silkyclouds/unraid-disk-talkers"
           GITHUB_BRANCH="main"
-          SUPPORT_URL="https://forums.unraid.net/topic/000000-plugin-disk-talkers/"
+          SUPPORT_URL="https://forums.unraid.net/topic/198305-plugin-disk-talkers/"
           RELEASE_TAG=""
           PLUGIN_AUTHOR="meaning"
           WRITE_ROOT_MANIFEST="0"

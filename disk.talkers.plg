@@ -5,7 +5,7 @@
 <!ENTITY version "2026.04.16c">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "4e4a918d1870682be33cc30cf69bc8f5">
+<!ENTITY packageMD5 "dc65b7fcc28a17d74e5134f5d86ab3c0">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
@@ -21,7 +21,7 @@
   pluginURL="&pluginURL;"
   icon="hdd-o"
   min="6.12.0"
-  support="https://github.com/silkyclouds/unraid-disk-talkers/issues"
+  support="https://forums.unraid.net/topic/198305-plugin-disk-talkers/"
 >
 
 <CHANGES>
