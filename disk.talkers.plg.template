@@ -25,6 +25,9 @@
 >
 
 <CHANGES>
+###2026.04.17c
+- Fixed the historical summary panels so the usage and timeline cards stay contained inside their parent on wide layouts.
+
 ###2026.04.17b
 - Added graceful handling when `python3` is missing on the host.
 - Shows a dependency-required state in the WebUI and guides users to install `Python 3 for UNRAID (6.11+)`.

@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.17b">
+<!ENTITY version "2026.04.17c">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "6f1b3c73f75fa2e6b336090cf673d20f">
+<!ENTITY packageMD5 "54ee87924399cecaff258df8ff558349">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.17b/disk.talkers-package-2026.04.17b-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.17c/disk.talkers-package-2026.04.17c-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,9 @@
 >
 
 <CHANGES>
+###2026.04.17c
+- Fixed the historical summary panels so the usage and timeline cards stay contained inside their parent on wide layouts.
+
 ###2026.04.17b
 - Added graceful handling when `python3` is missing on the host.
 - Shows a dependency-required state in the WebUI and guides users to install `Python 3 for UNRAID (6.11+)`.
