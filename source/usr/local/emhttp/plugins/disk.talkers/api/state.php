@@ -15,7 +15,7 @@ $interval = max(5, (int) ($config['POLL_INTERVAL'] ?? 5));
 $staleThreshold = max(15, $interval * 3);
 $needsRefresh = !is_file($stateFile) || (time() - filemtime($stateFile)) > $staleThreshold || isset($_GET['refresh']);
 
-if ($needsRefresh && is_executable($collector)) {
+if ($needsRefresh && is_file($collector)) {
     $cmd = sprintf(
         'python3 %s --once --config %s --state-file %s >/dev/null 2>&1',
         escapeshellarg($collector),
@@ -26,11 +26,22 @@ if ($needsRefresh && is_executable($collector)) {
 }
 
 if (!is_file($stateFile)) {
-    http_response_code(503);
     echo json_encode([
-        'ok' => false,
-        'error' => 'State file is not available yet.',
+        'ok' => true,
+        'initializing' => true,
         'generated_at' => gmdate(DATE_ATOM),
+        'collector_mode' => 'starting',
+        'warnings' => [
+            'Collector is starting. Data should appear within a few seconds.',
+        ],
+        'mount_audit' => [],
+        'array_talkers' => [],
+        'disks' => [],
+        'history' => [
+            'default_period' => 'daily',
+            'periods' => new stdClass(),
+        ],
+        'settings' => disk_talkers_settings_payload($config),
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     exit;
 }

@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.16c">
+<!ENTITY version "2026.04.17a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY sourceLOC "&pluginLOC;/source">
@@ -19,6 +19,10 @@
 >
 
 <CHANGES>
+###2026.04.17a
+- Improved light-theme button contrast for action buttons and period controls.
+- Turned collector startup and monitor fallback into inline notices instead of a hard failure during bootstrap.
+
 ###2026.04.16c
 - Cleaned public/local plugin metadata and standardized the published author as
   `meaning`.

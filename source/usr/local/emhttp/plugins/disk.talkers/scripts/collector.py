@@ -1317,6 +1317,16 @@ class DiskTalkersCollector:
         except OSError as exc:
             self.monitor_error = str(exc)
 
+    def disable_monitor(self, exc: OSError | str) -> None:
+        self.monitor_error = str(exc)
+        if self.monitor is None:
+            return
+        try:
+            os.close(self.monitor.fd)
+        except OSError:
+            pass
+        self.monitor = None
+
     def refresh_inventory_if_needed(self, force: bool = False) -> None:
         now = time.time()
         if not force and (now - self.last_inventory_refresh) < INVENTORY_REFRESH_SECONDS and self.disks:
@@ -1329,7 +1339,10 @@ class DiskTalkersCollector:
         if self.monitor is not None:
             watch_mounts = [disk["mount"] for disk in disks]
             watch_mounts.extend(mount for mount in FRONTDOOR_MOUNTS if os.path.isdir(mount))
-            self.monitor.sync(watch_mounts)
+            try:
+                self.monitor.sync(watch_mounts)
+            except OSError as exc:
+                self.disable_monitor(exc)
 
         for disk in disks:
             disk_id = disk["id"]
@@ -1604,7 +1617,13 @@ class DiskTalkersCollector:
         if self.monitor is None:
             return
 
-        for event in self.monitor.drain():
+        try:
+            events = self.monitor.drain()
+        except OSError as exc:
+            self.disable_monitor(exc)
+            return
+
+        for event in events:
             if event["path"].startswith("/mnt/user/") or event["path"].startswith("/mnt/user0/"):
                 self.record_frontdoor_event(event)
                 continue

@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.16c">
+<!ENTITY version "2026.04.17a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "dc65b7fcc28a17d74e5134f5d86ab3c0">
+<!ENTITY packageMD5 "686091789b67e72015a3ff30b5762a72">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.16c/disk.talkers-package-2026.04.16c-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.17a/disk.talkers-package-2026.04.17a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.04.17a
+- Improved light-theme button contrast for the main action buttons and period controls.
+- Degraded collector startup and fanotify failures into inline notices instead of a hard page error during install/bootstrap.
+
 ###2026.04.16c
 - Cleaned plugin metadata and standardized the published author as
   `meaning`.

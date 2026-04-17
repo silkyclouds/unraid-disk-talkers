@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.04.17a
+- Improved light-theme button contrast for the main action buttons and period controls.
+- Degraded collector startup and fanotify failures into inline notices instead of a hard page error during install/bootstrap.
+
 ###2026.04.16c
 - Cleaned plugin metadata and standardized the published author as
   `meaning`.

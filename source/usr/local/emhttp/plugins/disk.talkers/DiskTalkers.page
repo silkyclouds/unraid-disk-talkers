@@ -18,6 +18,47 @@ Cond="$var['mdState'] == 'STARTED'"
   --dt-accent: #74b7ff;
   --dt-accent-soft: rgba(116, 183, 255, 0.12);
   --dt-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  --dt-action-bg: rgba(21, 29, 39, 0.92);
+  --dt-action-border: #334152;
+  --dt-action-text: #d7dfeb;
+  --dt-action-primary-bg: #2f79cb;
+  --dt-action-primary-border: #56a0f3;
+  --dt-action-primary-text: #f7fbff;
+  --dt-action-warn-bg: #b97318;
+  --dt-action-warn-border: #eba547;
+  --dt-action-warn-text: #fff4e1;
+  --dt-action-secondary-bg: rgba(255, 255, 255, 0.03);
+  --dt-notice-info-bg: rgba(17, 37, 58, 0.94);
+  --dt-notice-info-border: rgba(100, 163, 255, 0.35);
+  --dt-notice-info-text: #d9e9ff;
+  --dt-notice-warning-bg: rgba(64, 46, 14, 0.96);
+  --dt-notice-warning-border: rgba(255, 194, 93, 0.32);
+  --dt-notice-warning-text: #ffe8b8;
+  --dt-notice-error-bg: #3a1e22;
+  --dt-notice-error-border: #64313a;
+  --dt-notice-error-text: #ffd5dc;
+}
+
+html.dt-host-light {
+  --dt-action-bg: #f7fafc;
+  --dt-action-border: #bac7d5;
+  --dt-action-text: #1d2a38;
+  --dt-action-primary-bg: #1f6dc3;
+  --dt-action-primary-border: #15579d;
+  --dt-action-primary-text: #ffffff;
+  --dt-action-warn-bg: #bb6d00;
+  --dt-action-warn-border: #965700;
+  --dt-action-warn-text: #ffffff;
+  --dt-action-secondary-bg: rgba(255, 255, 255, 0.86);
+  --dt-notice-info-bg: #edf5ff;
+  --dt-notice-info-border: #bdd5f1;
+  --dt-notice-info-text: #183553;
+  --dt-notice-warning-bg: #fff4df;
+  --dt-notice-warning-border: #f3d093;
+  --dt-notice-warning-text: #5f3d09;
+  --dt-notice-error-bg: #fdecef;
+  --dt-notice-error-border: #e3b9c0;
+  --dt-notice-error-text: #6c2330;
 }
 
 .dt-meta {
@@ -47,6 +88,44 @@ Cond="$var['mdState'] == 'STARTED'"
   box-shadow: var(--dt-shadow);
 }
 
+.dt-notices[hidden] {
+  display: none;
+}
+
+.dt-notices {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dt-notice {
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: var(--dt-shadow);
+}
+
+.dt-notice.info {
+  background: var(--dt-notice-info-bg);
+  border-color: var(--dt-notice-info-border);
+  color: var(--dt-notice-info-text);
+}
+
+.dt-notice.warning {
+  background: var(--dt-notice-warning-bg);
+  border-color: var(--dt-notice-warning-border);
+  color: var(--dt-notice-warning-text);
+}
+
+.dt-notice.error {
+  background: var(--dt-notice-error-bg);
+  border-color: var(--dt-notice-error-border);
+  color: var(--dt-notice-error-text);
+}
+
 .dt-toolbar {
   display: flex;
   align-items: center;
@@ -72,9 +151,9 @@ Cond="$var['mdState'] == 'STARTED'"
 }
 
 .dt-action-btn {
-  border: 1px solid #334152;
-  background: rgba(21, 29, 39, 0.92);
-  color: #d7dfeb;
+  border: 1px solid var(--dt-action-border);
+  background: var(--dt-action-bg);
+  color: var(--dt-action-text);
   border-radius: 999px;
   padding: 9px 13px;
   font-size: 12px;
@@ -85,23 +164,23 @@ Cond="$var['mdState'] == 'STARTED'"
 
 .dt-action-btn:hover {
   transform: translateY(-1px);
-  border-color: #4d6481;
+  border-color: color-mix(in srgb, var(--dt-action-border) 75%, white);
 }
 
 .dt-action-btn.primary {
-  background: rgba(116, 183, 255, 0.14);
-  border-color: rgba(116, 183, 255, 0.28);
-  color: #eef5ff;
+  background: var(--dt-action-primary-bg) !important;
+  border-color: var(--dt-action-primary-border) !important;
+  color: var(--dt-action-primary-text) !important;
 }
 
 .dt-action-btn.warn {
-  background: rgba(255, 181, 94, 0.12);
-  border-color: rgba(255, 181, 94, 0.22);
-  color: #ffe2b7;
+  background: var(--dt-action-warn-bg) !important;
+  border-color: var(--dt-action-warn-border) !important;
+  color: var(--dt-action-warn-text) !important;
 }
 
 .dt-action-btn.secondary {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--dt-action-secondary-bg);
 }
 
 .dt-action-btn:disabled,
@@ -133,9 +212,9 @@ Cond="$var['mdState'] == 'STARTED'"
 
 .dt-period-btn,
 .dt-toggle-btn {
-  border: 1px solid #334152;
-  background: rgba(21, 29, 39, 0.92);
-  color: #d7dfeb;
+  border: 1px solid var(--dt-action-border);
+  background: var(--dt-action-bg);
+  color: var(--dt-action-text);
   border-radius: 999px;
   padding: 8px 13px;
   font-size: 12px;
@@ -146,14 +225,14 @@ Cond="$var['mdState'] == 'STARTED'"
 .dt-period-btn:hover,
 .dt-toggle-btn:hover {
   transform: translateY(-1px);
-  border-color: #4d6481;
+  border-color: color-mix(in srgb, var(--dt-action-border) 75%, white);
 }
 
 .dt-period-btn.active,
 .dt-toggle-btn.active {
-  background: rgba(38, 74, 116, 0.85);
-  color: #eef5ff;
-  border-color: #4f7cae;
+  background: var(--dt-action-primary-bg);
+  color: var(--dt-action-primary-text);
+  border-color: var(--dt-action-primary-border);
 }
 
 .dt-audit-body[hidden] {
@@ -866,9 +945,19 @@ Cond="$var['mdState'] == 'STARTED'"
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #3a1e22;
-  border: 1px solid #64313a;
-  color: #ffd5dc;
+  background: var(--dt-notice-error-bg);
+  border: 1px solid var(--dt-notice-error-border);
+  color: var(--dt-notice-error-text);
+}
+
+.dt-empty-panel {
+  margin-top: 12px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px dashed var(--dt-border);
+  background: rgba(15, 21, 29, 0.65);
+  color: var(--dt-text-soft);
+  font-size: 13px;
 }
 
 .dt-modal-shell[hidden] {
@@ -1129,6 +1218,7 @@ Cond="$var['mdState'] == 'STARTED'"
 </style>
 
 <div class="dt-meta" id="dt-meta">Loading...</div>
+<div class="dt-notices" id="dt-notices" hidden></div>
 <div class="dt-toolbar">
   <div class="dt-toolbar-main">
     <div class="dt-actions">
@@ -1273,6 +1363,7 @@ Cond="$var['mdState'] == 'STARTED'"
   const controlEndpoint = "/plugins/disk.talkers/api/control.php";
   const settingsEndpoint = "/plugins/disk.talkers/api/settings.php";
   const meta = document.getElementById("dt-meta");
+  const notices = document.getElementById("dt-notices");
   const spinUpAllButton = document.getElementById("dt-spinup-all");
   const spinDownAllButton = document.getElementById("dt-spindown-all");
   const settingsOpenButton = document.getElementById("dt-settings-open");
@@ -1305,6 +1396,19 @@ Cond="$var['mdState'] == 'STARTED'"
   let auditCount = 0;
   let currentSettings = null;
   let toastTimer = null;
+
+  function applyHostTheme() {
+    const background = getComputedStyle(document.body).backgroundColor || getComputedStyle(document.documentElement).backgroundColor;
+    const match = background.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (!match) {
+      return;
+    }
+    const red = Number(match[1]);
+    const green = Number(match[2]);
+    const blue = Number(match[3]);
+    const luminance = ((0.2126 * red) + (0.7152 * green) + (0.0722 * blue)) / 255;
+    document.documentElement.classList.toggle("dt-host-light", luminance >= 0.62);
+  }
 
   function escapeHtml(value) {
     return String(value)
@@ -1368,6 +1472,21 @@ Cond="$var['mdState'] == 'STARTED'"
     }
     button.disabled = busy;
     button.classList.toggle("busy", busy);
+  }
+
+  function renderNotices(items) {
+    if (!notices) {
+      return;
+    }
+    if (!items.length) {
+      notices.hidden = true;
+      notices.innerHTML = "";
+      return;
+    }
+    notices.innerHTML = items.map((item) => `
+      <div class="dt-notice ${escapeHtml(item.tone || "info")}">${escapeHtml(item.message || "")}</div>
+    `).join("");
+    notices.hidden = false;
   }
 
   function confirmDialog(title, text) {
@@ -1967,11 +2086,27 @@ Cond="$var['mdState'] == 'STARTED'"
 
   function render(payload) {
     if (!payload.ok) {
-      meta.textContent = "Collector error";
+      meta.textContent = "Collector unavailable";
+      renderNotices([{ tone: "error", message: payload.error || "Unknown error" }]);
       summary.innerHTML = "";
+      auditCount = 0;
+      applyAuditVisibility();
+      auditBody.innerHTML = "";
       root.innerHTML = `<div class="dt-error">${escapeHtml(payload.error || "Unknown error")}</div>`;
       return;
     }
+
+    const noticesToRender = [];
+    if (payload.initializing) {
+      noticesToRender.push({
+        tone: "info",
+        message: "Collector is starting. Disk data should appear within a few seconds."
+      });
+    }
+    (payload.warnings || []).forEach((warning) => {
+      noticesToRender.push({ tone: "warning", message: warning });
+    });
+    renderNotices(noticesToRender);
 
     currentSettings = payload.settings || currentSettings;
     if (currentSettings && settingsShell.hidden) {
@@ -2081,6 +2216,11 @@ Cond="$var['mdState'] == 'STARTED'"
       `;
     }).join("");
 
+    if (payload.initializing && !(payload.disks || []).length) {
+      root.innerHTML = '<div class="dt-empty-panel">Collector is starting. If this stays empty for more than a few seconds, check <code>/var/log/disk.talkers.log</code> on the Unraid host.</div>';
+      return;
+    }
+
     root.innerHTML = `
       <table class="dt-table">
         <thead>
@@ -2104,6 +2244,7 @@ Cond="$var['mdState'] == 'STARTED'"
       render(payload);
     } catch (error) {
       meta.textContent = "Refresh failed";
+      renderNotices([{ tone: "error", message: error.message || "Unknown error" }]);
       root.innerHTML = `<div class="dt-error">${escapeHtml(error.message || "Unknown error")}</div>`;
     }
   }
@@ -2197,6 +2338,7 @@ Cond="$var['mdState'] == 'STARTED'"
 
   renderPeriodButtons(selectedPeriod);
   applyAuditVisibility();
+  applyHostTheme();
   refresh();
   window.setInterval(refresh, 5000);
 })();
