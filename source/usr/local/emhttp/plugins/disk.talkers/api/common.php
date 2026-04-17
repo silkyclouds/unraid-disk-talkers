@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 const DISK_TALKERS_PLUGIN = 'disk.talkers';
 const DISK_TALKERS_CONFIG_PATH = '/boot/config/plugins/disk.talkers/disk.talkers.cfg';
+const DISK_TALKERS_PYTHON_PLUGIN_NAME = 'Python 3 for UNRAID (6.11+)';
+const DISK_TALKERS_PYTHON_PLUGIN_SUPPORT_URL = 'https://forums.unraid.net/topic/175402-plugin-python-3-for-unraid-611/';
 
 function disk_talkers_defaults(): array {
     return [
@@ -96,3 +98,39 @@ function write_plugin_cfg(array $config, string $path = DISK_TALKERS_CONFIG_PATH
     file_put_contents($path, implode(PHP_EOL, $lines) . PHP_EOL, LOCK_EX);
 }
 
+function disk_talkers_find_python3(): string {
+    $path = trim((string) shell_exec('command -v python3 2>/dev/null'));
+    return $path;
+}
+
+function disk_talkers_dependency_payload(): array {
+    return [
+        'name' => DISK_TALKERS_PYTHON_PLUGIN_NAME,
+        'reason' => 'python3 binary not found on the Unraid host',
+        'support_url' => DISK_TALKERS_PYTHON_PLUGIN_SUPPORT_URL,
+        'install_hint' => 'Install `Python 3 for UNRAID (6.11+)` from Community Applications, then refresh this page.',
+    ];
+}
+
+function disk_talkers_dependency_blocked_response(array $config): array {
+    return [
+        'ok' => true,
+        'dependency_blocked' => true,
+        'generated_at' => gmdate(DATE_ATOM),
+        'collector_mode' => 'dependency-blocked',
+        'dependency' => disk_talkers_dependency_payload(),
+        'warnings' => [],
+        'mount_audit' => [],
+        'array_talkers' => [],
+        'disks' => [],
+        'history' => [
+            'default_period' => 'daily',
+            'periods' => new stdClass(),
+        ],
+        'settings' => disk_talkers_settings_payload($config),
+    ];
+}
+
+function disk_talkers_payload_is_dependency_blocked(array $payload): bool {
+    return !empty($payload['dependency_blocked']) || (!empty($payload['collector_mode']) && $payload['collector_mode'] === 'dependency-blocked');
+}

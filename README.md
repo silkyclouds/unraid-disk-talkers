@@ -10,6 +10,11 @@ or host services are probably keeping each array disk or pool busy.
 Disk Talkers is already testable before Community Apps listing by installing the
 plugin URL directly from Unraid.
 
+Prerequisite:
+Disk Talkers needs `Python 3 for UNRAID (6.11+)` on the Unraid host. Install
+that plugin first from Community Applications, or install it afterward and then
+refresh the Disk Talkers page.
+
 Official support thread:
 `https://forums.unraid.net/topic/198305-plugin-disk-talkers/`
 
@@ -36,6 +41,9 @@ installplg https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/mai
 
 The plugin page then appears in Unraid under `System Information -> Disk
 Talkers`.
+
+If Python is missing, Disk Talkers will stay installed but show a dependency
+notice until `Python 3 for UNRAID (6.11+)` is installed.
 
 ## Layout
 
@@ -108,3 +116,14 @@ Disk Talkers`.
   separate so local development does not depend on GitHub Releases.
 - The current public install path is the direct plugin URL above. Community
   Apps indexing will be added after Community Applications review.
+
+## Troubleshooting
+
+If `/var/log/disk.talkers.log` shows:
+
+```text
+nohup: failed to run command 'python3': No such file or directory
+```
+
+install `Python 3 for UNRAID (6.11+)` from Community Applications, then refresh
+the Disk Talkers page.

@@ -28,6 +28,13 @@ It correlates:
 Until Community Applications listing is live, the plugin can already be tested
 with the direct plugin URL.
 
+### Prerequisite
+
+Disk Talkers needs `Python 3 for UNRAID (6.11+)` on the Unraid host.
+
+If Python is not installed yet, Disk Talkers will remain installed and show a
+dependency-required state in the WebUI until the Python plugin is installed.
+
 ### WebUI method
 
 1. Open your Unraid WebUI.
@@ -47,6 +54,15 @@ with the direct plugin URL.
   unattributed residual activity in history views.
 - Energy and cost figures are estimates derived from historical HDD up-time and
   configured watt/tariff settings.
+
+## Troubleshooting
+
+If `/var/log/disk.talkers.log` contains:
+
+`nohup: failed to run command 'python3': No such file or directory`
+
+install `Python 3 for UNRAID (6.11+)` from Community Applications, then refresh
+the Disk Talkers page.
 
 ## Support
 

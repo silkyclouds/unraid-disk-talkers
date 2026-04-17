@@ -25,6 +25,11 @@
 >
 
 <CHANGES>
+###2026.04.17b
+- Added graceful handling when `python3` is missing on the host.
+- Shows a dependency-required state in the WebUI and guides users to install `Python 3 for UNRAID (6.11+)`.
+- Stops retry-spamming `nohup: failed to run command 'python3'` on hosts without the Python prerequisite.
+
 ###2026.04.17a
 - Improved light-theme button contrast for the main action buttons and period controls.
 - Degraded collector startup and fanotify failures into inline notices instead of a hard page error during install/bootstrap.
@@ -66,13 +71,24 @@ chmod +x "&emhttpLOC;/event/started" || true
 chmod +x "&emhttpLOC;/event/stopping_svcs" || true
 
 if [ -x "&emhttpLOC;/scripts/rc.&name;" ]; then
-  "&emhttpLOC;/scripts/rc.&name;" restart >/dev/null 2>&amp;1 || true
+  if command -v python3 >/dev/null 2>&amp;1; then
+    "&emhttpLOC;/scripts/rc.&name;" restart >/dev/null 2>&amp;1 || true
+  else
+    "&emhttpLOC;/scripts/rc.&name;" once >/dev/null 2>&amp;1 || true
+  fi
 fi
 
 echo ""
 echo "----------------------------------------------------"
 echo " Disk Talkers installed."
 echo " Version: &version;"
+if ! command -v python3 >/dev/null 2>&amp;1; then
+echo ""
+echo " NOTE: Python dependency missing."
+echo " Disk Talkers is installed, but the collector was not started."
+echo " Install 'Python 3 for UNRAID (6.11+)' from Community Applications,"
+echo " then refresh the Disk Talkers page."
+fi
 echo "----------------------------------------------------"
 echo ""
 </INLINE>

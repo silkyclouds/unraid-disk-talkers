@@ -3,6 +3,8 @@ plugin="disk.talkers"
 config="/boot/config/plugins/${plugin}/${plugin}.cfg"
 collector="/usr/local/emhttp/plugins/${plugin}/scripts/collector.py"
 pidfile="/var/run/${plugin}.pid"
+python_plugin_name="Python 3 for UNRAID (6.11+)"
+python_plugin_url="https://forums.unraid.net/topic/175402-plugin-python-3-for-unraid-611/"
 
 read_cfg() {
   if [ -f "$config" ]; then
@@ -26,6 +28,47 @@ is_running() {
   kill -0 "$pid" 2>/dev/null
 }
 
+has_python() {
+  command -v python3 >/dev/null 2>&1
+}
+
+write_dependency_state() {
+  mkdir -p "$(dirname "$STATE_FILE")"
+
+  cat > "$STATE_FILE" <<EOF
+{
+  "ok": true,
+  "dependency_blocked": true,
+  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "collector_mode": "dependency-blocked",
+  "dependency": {
+    "name": "$python_plugin_name",
+    "reason": "python3 binary not found on the Unraid host",
+    "support_url": "$python_plugin_url",
+    "install_hint": "Install \`Python 3 for UNRAID (6.11+)\` from Community Applications, then refresh this page."
+  },
+  "warnings": [],
+  "mount_audit": [],
+  "array_talkers": [],
+  "disks": [],
+  "history": {
+    "default_period": "daily",
+    "periods": {}
+  }
+}
+EOF
+}
+
+log_missing_python() {
+  local note="Disk Talkers requires ${python_plugin_name}. Collector not started because python3 is not available. Install it from Community Applications and refresh Disk Talkers."
+  local last_line
+  last_line="$(tail -n 1 "$LOG_FILE" 2>/dev/null || true)"
+  mkdir -p "$(dirname "$LOG_FILE")"
+  if [[ "$last_line" != *"${note}"* ]]; then
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$note" >> "$LOG_FILE"
+  fi
+}
+
 start() {
   read_cfg
 
@@ -36,6 +79,14 @@ start() {
 
   mkdir -p "$(dirname "$STATE_FILE")"
   mkdir -p /tmp/disk.talkers
+
+  if ! has_python; then
+    write_dependency_state
+    log_missing_python
+    rm -f "$pidfile"
+    echo "Disk Talkers dependency missing: ${python_plugin_name}"
+    return 0
+  fi
 
   nohup python3 "$collector" \
     --config "$config" \
@@ -66,6 +117,13 @@ restart() {
 
 run_once() {
   read_cfg
+
+  if ! has_python; then
+    write_dependency_state
+    log_missing_python
+    return 0
+  fi
+
   python3 "$collector" \
     --once \
     --config "$config" \

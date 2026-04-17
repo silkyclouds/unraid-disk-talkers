@@ -960,6 +960,48 @@ html.dt-host-light {
   font-size: 13px;
 }
 
+.dt-dependency-card {
+  margin-top: 12px;
+  padding: 20px 22px;
+  border-radius: 16px;
+  border: 1px solid var(--dt-notice-warning-border);
+  background: linear-gradient(180deg, rgba(19, 26, 35, 0.96), rgba(15, 21, 29, 0.98));
+  box-shadow: var(--dt-shadow);
+}
+
+.dt-dependency-kicker {
+  color: var(--dt-text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dt-dependency-title {
+  margin-top: 8px;
+  color: var(--dt-text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.dt-dependency-copy,
+.dt-dependency-reason,
+.dt-dependency-note {
+  margin-top: 10px;
+  color: var(--dt-text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dt-dependency-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 .dt-modal-shell[hidden] {
   display: none;
 }
@@ -1487,6 +1529,43 @@ html.dt-host-light {
       <div class="dt-notice ${escapeHtml(item.tone || "info")}">${escapeHtml(item.message || "")}</div>
     `).join("");
     notices.hidden = false;
+  }
+
+  function applyDependencyBlocked(blocked) {
+    spinUpAllButton.disabled = blocked;
+    spinDownAllButton.disabled = blocked;
+    summary.hidden = blocked;
+    audit.hidden = blocked;
+    if (blocked) {
+      periods.innerHTML = "";
+      auditBody.innerHTML = "";
+      summary.innerHTML = "";
+    }
+  }
+
+  function renderDependencyBlocked(payload) {
+    const dependency = payload.dependency || {};
+    const name = dependency.name || "Python 3 for UNRAID (6.11+)";
+    const reason = dependency.reason || "python3 binary not found on the Unraid host";
+    const installHint = dependency.install_hint || "Install `Python 3 for UNRAID (6.11+)` from Community Applications, then refresh this page.";
+    const supportUrl = dependency.support_url || "";
+
+    const linkHtml = supportUrl
+      ? `<a class="dt-action-btn secondary" href="${escapeHtml(supportUrl)}" target="_blank" rel="noopener">Open Python plugin thread</a>`
+      : "";
+
+    return `
+      <div class="dt-dependency-card">
+        <div class="dt-dependency-kicker">Dependency required</div>
+        <div class="dt-dependency-title">${escapeHtml(name)}</div>
+        <div class="dt-dependency-copy">Disk Talkers needs this dependency before the collector can run on the Unraid host.</div>
+        <div class="dt-dependency-reason">Reason: ${escapeHtml(reason)}</div>
+        <div class="dt-dependency-actions">
+          ${linkHtml}
+        </div>
+        <div class="dt-dependency-note">${escapeHtml(installHint)} Search for <strong>${escapeHtml(name)}</strong> in Community Applications, install it, then refresh Disk Talkers.</div>
+      </div>
+    `;
   }
 
   function confirmDialog(title, text) {
@@ -2086,6 +2165,7 @@ html.dt-host-light {
 
   function render(payload) {
     if (!payload.ok) {
+      applyDependencyBlocked(false);
       meta.textContent = "Collector unavailable";
       renderNotices([{ tone: "error", message: payload.error || "Unknown error" }]);
       summary.innerHTML = "";
@@ -2097,6 +2177,12 @@ html.dt-host-light {
     }
 
     const noticesToRender = [];
+    if (payload.dependency_blocked && payload.dependency && payload.dependency.name) {
+      noticesToRender.push({
+        tone: "warning",
+        message: `Disk Talkers needs ${payload.dependency.name} before the collector can run.`
+      });
+    }
     if (payload.initializing) {
       noticesToRender.push({
         tone: "info",
@@ -2112,6 +2198,15 @@ html.dt-host-light {
     if (currentSettings && settingsShell.hidden) {
       populateSettingsForm(currentSettings);
     }
+
+    if (payload.dependency_blocked) {
+      applyDependencyBlocked(true);
+      meta.textContent = "Dependency required";
+      root.innerHTML = renderDependencyBlocked(payload);
+      return;
+    }
+
+    applyDependencyBlocked(false);
 
     const history = payload.history || { default_period: "daily", periods: {} };
     if (!periodOptions.includes(selectedPeriod)) {
