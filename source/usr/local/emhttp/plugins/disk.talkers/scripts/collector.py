@@ -66,7 +66,6 @@ SERVICE_MAP = {
 PID_CACHE_TTL = 60.0
 INVENTORY_REFRESH_SECONDS = 5.0
 LOOP_SLEEP_SECONDS = 0.05
-SPINUP_GRACE_SECONDS = 10.0
 PROXY_RESOLVE_WINDOW = 15.0
 PATH_LIMIT = 5
 PID_LIMIT = 12
@@ -76,6 +75,8 @@ CONTAINER_IO_ACTIVE_BPS = 4096.0
 OPEN_PATHS_CACHE_TTL = 5.0
 DEFAULT_HISTORY_SAMPLE_INTERVAL = 300
 HISTORY_BUCKET_SECONDS = 3600
+SPINUP_CAPTURE_WINDOW_SECONDS = 30.0
+SESSION_ROWS_LIMIT = 3
 HISTORY_PERIODS = {
     "daily": 86400,
     "weekly": 7 * 86400,
@@ -262,6 +263,12 @@ def human_currency(value: float, symbol: str = DEFAULT_CURRENCY_SYMBOL) -> str:
     if value < 1:
         return f"{symbol}{value:.2f}"
     return f"{symbol}{value:.2f}"
+
+
+def human_temperature(value: float | int | None) -> str:
+    if value is None:
+        return "-"
+    return f"{round(float(value)):.0f}°C"
 
 
 def parse_clock_minutes(value: str, fallback: str) -> int:
@@ -468,6 +475,13 @@ def build_disk_inventory() -> list[dict[str, Any]]:
         spundown = meta.get("spundown")
         match = re.fullmatch(r"disk(\d+)", name)
         stat_device = os.path.basename(mount["source"]).replace("/dev/", "")
+        temp_raw = meta.get("temp", "").strip()
+        try:
+            temperature_c = float(temp_raw) if temp_raw else None
+        except ValueError:
+            temperature_c = None
+        if temperature_c is not None and temperature_c < 0:
+            temperature_c = None
 
         state = "active"
         label = "pool / ssd"
@@ -504,6 +518,8 @@ def build_disk_inventory() -> list[dict[str, Any]]:
                 "status": {"state": state, "label": label},
                 "rotational": rotational == "1",
                 "stat_device": stat_device,
+                "temperature_c": temperature_c,
+                "temperature_human": human_temperature(temperature_c),
             }
         )
 
@@ -846,7 +862,15 @@ class FanotifyMonitor:
 
 
 def new_session(now: float) -> dict[str, Any]:
-    return {"started_at": now, "talkers": {}}
+    return {
+        "started_at": now,
+        "last_seen": now,
+        "trigger_talker": None,
+        "trigger_pid": 0,
+        "trigger_paths": [],
+        "recent_paths": [],
+        "talkers": {},
+    }
 
 
 def new_talker_state(base: dict[str, Any]) -> dict[str, Any]:
@@ -927,10 +951,86 @@ class HistoryStore:
                     seconds REAL NOT NULL DEFAULT 0,
                     PRIMARY KEY (bucket_start, disk_id, talker_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS disk_temperature_history (
+                    bucket_start INTEGER NOT NULL,
+                    disk_id TEXT NOT NULL,
+                    avg_temp_c REAL NOT NULL DEFAULT 0,
+                    min_temp_c REAL NOT NULL DEFAULT 0,
+                    max_temp_c REAL NOT NULL DEFAULT 0,
+                    sample_count INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (bucket_start, disk_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS disk_spinup_sessions (
+                    disk_id TEXT NOT NULL,
+                    started_at INTEGER NOT NULL,
+                    ended_at INTEGER,
+                    duration_seconds REAL NOT NULL DEFAULT 0,
+                    trigger_talker_id TEXT NOT NULL,
+                    trigger_talker_name TEXT NOT NULL,
+                    trigger_kind TEXT NOT NULL,
+                    trigger_icon_json TEXT NOT NULL,
+                    trigger_paths_json TEXT NOT NULL,
+                    PRIMARY KEY (disk_id, started_at)
+                );
                 """
             )
             self._schema_ready = True
         return conn
+
+    def record_spinup_session(self, session: dict[str, Any]) -> None:
+        started_at = int(session.get("started_at", 0) or 0)
+        disk_id = str(session.get("disk_id", "") or "")
+        if started_at <= 0 or not disk_id:
+            return
+
+        trigger = session.get("trigger_talker") or unattributed_talker()
+        talker_id, talker_name, talker_kind, talker_icon = normalize_history_talker_identity(
+            str(trigger.get("id", UNATTRIBUTED_TALKER_ID)),
+            str(trigger.get("name", UNATTRIBUTED_TALKER_NAME)),
+            str(trigger.get("kind", "service")),
+            trigger.get("icon"),
+        )
+        ended_at_raw = session.get("ended_at")
+        ended_at = int(ended_at_raw) if ended_at_raw is not None else None
+        duration_seconds = max(0.0, float(session.get("duration_seconds", 0.0) or 0.0))
+        trigger_paths = list(session.get("trigger_paths") or [])
+
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO disk_spinup_sessions(
+                    disk_id, started_at, ended_at, duration_seconds,
+                    trigger_talker_id, trigger_talker_name, trigger_kind,
+                    trigger_icon_json, trigger_paths_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(disk_id, started_at)
+                DO UPDATE SET
+                    ended_at = excluded.ended_at,
+                    duration_seconds = excluded.duration_seconds,
+                    trigger_talker_id = excluded.trigger_talker_id,
+                    trigger_talker_name = excluded.trigger_talker_name,
+                    trigger_kind = excluded.trigger_kind,
+                    trigger_icon_json = excluded.trigger_icon_json,
+                    trigger_paths_json = excluded.trigger_paths_json
+                """,
+                (
+                    disk_id,
+                    started_at,
+                    ended_at,
+                    duration_seconds,
+                    talker_id,
+                    talker_name,
+                    talker_kind,
+                    json.dumps(talker_icon),
+                    json.dumps(trigger_paths),
+                ),
+            )
+            cutoff = int(time.time()) - (370 * 86400)
+            conn.execute("DELETE FROM disk_spinup_sessions WHERE started_at < ?", (cutoff,))
+            conn.commit()
 
     def record_payload(self, payload: dict[str, Any], sample_seconds: float, timestamp: float | None = None) -> None:
         if sample_seconds <= 0:
@@ -952,7 +1052,25 @@ class HistoryStore:
                     DO UPDATE SET spun_up_seconds = spun_up_seconds + excluded.spun_up_seconds
                     """,
                     (bucket_start, disk_id, sample_seconds),
-                )
+                    )
+
+                temp_c = disk.get("temperature_c")
+                if temp_c is not None:
+                    temp_value = float(temp_c)
+                    conn.execute(
+                        """
+                        INSERT INTO disk_temperature_history(bucket_start, disk_id, avg_temp_c, min_temp_c, max_temp_c, sample_count)
+                        VALUES (?, ?, ?, ?, ?, 1)
+                        ON CONFLICT(bucket_start, disk_id)
+                        DO UPDATE SET
+                            avg_temp_c = ((disk_temperature_history.avg_temp_c * disk_temperature_history.sample_count) + excluded.avg_temp_c)
+                                / (disk_temperature_history.sample_count + 1),
+                            min_temp_c = MIN(disk_temperature_history.min_temp_c, excluded.min_temp_c),
+                            max_temp_c = MAX(disk_temperature_history.max_temp_c, excluded.max_temp_c),
+                            sample_count = disk_temperature_history.sample_count + 1
+                        """,
+                        (bucket_start, disk_id, temp_value, temp_value, temp_value),
+                    )
 
                 talkers = list(disk.get("history_talkers") or disk.get("talkers") or [])
                 if not talkers:
@@ -1010,15 +1128,18 @@ class HistoryStore:
             cutoff = bucket_start - (370 * 86400)
             conn.execute("DELETE FROM disk_state_history WHERE bucket_start < ?", (cutoff,))
             conn.execute("DELETE FROM disk_talker_history WHERE bucket_start < ?", (cutoff,))
+            conn.execute("DELETE FROM disk_temperature_history WHERE bucket_start < ?", (cutoff,))
             conn.commit()
 
-    def build_summary(self, disks: list[dict[str, Any]]) -> dict[str, Any]:
+    def build_summary(self, disks: list[dict[str, Any]], active_sessions: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
         disk_names = [disk["id"] for disk in disks if disk.get("kind") == "disk"]
         if not disk_names:
             return {"default_period": "daily", "periods": {}}
 
         now_local = dt.datetime.now().astimezone()
         tzinfo = now_local.tzinfo or dt.timezone.utc
+        now_ts = time.time()
+        active_sessions = active_sessions or {}
         disk_count = float(len(disk_names))
         timeline_point_counts = {"daily": 24, "weekly": 7, "monthly": 30, "yearly": 12}
 
@@ -1046,11 +1167,32 @@ class HistoryStore:
                     (since,),
                 ).fetchall()
 
+                temperature_rows = conn.execute(
+                    """
+                    SELECT bucket_start, disk_id, avg_temp_c, min_temp_c, max_temp_c, sample_count
+                    FROM disk_temperature_history
+                    WHERE bucket_start >= ?
+                    """,
+                    (since,),
+                ).fetchall()
+
+                session_rows = conn.execute(
+                    """
+                    SELECT disk_id, started_at, ended_at, duration_seconds, trigger_talker_id, trigger_talker_name, trigger_kind, trigger_icon_json, trigger_paths_json
+                    FROM disk_spinup_sessions
+                    WHERE started_at >= ?
+                    ORDER BY started_at DESC
+                    """,
+                    (since,),
+                ).fetchall()
+
                 disk_totals: dict[str, float] = {}
                 by_disk: dict[str, dict[str, dict[str, Any]]] = {}
                 array_talkers: dict[str, dict[str, Any]] = {}
                 timeline_state_totals: dict[int, float] = {}
                 timeline_talkers: dict[int, dict[str, dict[str, Any]]] = {}
+                temp_by_disk_point: dict[str, dict[int, dict[str, float]]] = {}
+                sessions_by_disk: dict[str, list[dict[str, Any]]] = {}
                 total_energy_min_kwh = 0.0
                 total_energy_max_kwh = 0.0
                 total_cost_min = 0.0
@@ -1151,6 +1293,100 @@ class HistoryStore:
                     )
                     point_item["seconds"] += seconds
 
+                for row in temperature_rows:
+                    disk_id = str(row["disk_id"])
+                    sample_count = int(row["sample_count"] or 0)
+                    avg_temp_c = float(row["avg_temp_c"] or 0.0)
+                    if sample_count <= 0:
+                        continue
+                    bucket_local = dt.datetime.fromtimestamp(int(row["bucket_start"]), tz=tzinfo)
+                    point_start = floor_period_start_local(bucket_local, group)
+                    point_key = int(point_start.timestamp())
+                    point = temp_by_disk_point.setdefault(disk_id, {}).setdefault(
+                        point_key,
+                        {
+                            "sum_temp": 0.0,
+                            "sample_count": 0.0,
+                            "min_temp_c": float(row["min_temp_c"] or avg_temp_c),
+                            "max_temp_c": float(row["max_temp_c"] or avg_temp_c),
+                        },
+                    )
+                    point["sum_temp"] += avg_temp_c * sample_count
+                    point["sample_count"] += sample_count
+                    point["min_temp_c"] = min(point["min_temp_c"], float(row["min_temp_c"] or avg_temp_c))
+                    point["max_temp_c"] = max(point["max_temp_c"], float(row["max_temp_c"] or avg_temp_c))
+
+                for row in session_rows:
+                    disk_id = str(row["disk_id"])
+                    icon = {"type": "fa", "value": "fa-cog"}
+                    try:
+                        icon = json.loads(row["trigger_icon_json"] or "{}") or icon
+                    except json.JSONDecodeError:
+                        pass
+                    try:
+                        trigger_paths = list(json.loads(row["trigger_paths_json"] or "[]") or [])
+                    except json.JSONDecodeError:
+                        trigger_paths = []
+                    talker_id, talker_name, talker_kind, talker_icon = normalize_history_talker_identity(
+                        str(row["trigger_talker_id"] or UNATTRIBUTED_TALKER_ID),
+                        str(row["trigger_talker_name"] or UNATTRIBUTED_TALKER_NAME),
+                        str(row["trigger_kind"] or "service"),
+                        icon,
+                    )
+                    started_at = int(row["started_at"] or 0)
+                    ended_raw = row["ended_at"]
+                    ended_at = int(ended_raw) if ended_raw is not None else None
+                    duration_seconds = max(0.0, float(row["duration_seconds"] or 0.0))
+                    sessions_by_disk.setdefault(disk_id, []).append(
+                        {
+                            "started_at_ts": started_at,
+                            "started_at": dt.datetime.fromtimestamp(started_at, tz=tzinfo).isoformat(),
+                            "ended_at_ts": ended_at,
+                            "ended_at": dt.datetime.fromtimestamp(ended_at, tz=tzinfo).isoformat() if ended_at is not None else None,
+                            "duration_seconds": duration_seconds,
+                            "duration_human": human_duration(duration_seconds),
+                            "active": False,
+                            "trigger_talker": {
+                                "id": talker_id,
+                                "name": talker_name,
+                                "kind": talker_kind,
+                                "icon": talker_icon,
+                            },
+                            "trigger_paths": trigger_paths[:PATH_LIMIT],
+                        }
+                    )
+
+                for disk_id, session in active_sessions.items():
+                    started_at_ts = int(session.get("started_at", 0) or 0)
+                    if disk_id not in disk_names or started_at_ts < since:
+                        continue
+                    trigger = session.get("trigger_talker") or unattributed_talker()
+                    talker_id, talker_name, talker_kind, talker_icon = normalize_history_talker_identity(
+                        str(trigger.get("id", UNATTRIBUTED_TALKER_ID)),
+                        str(trigger.get("name", UNATTRIBUTED_TALKER_NAME)),
+                        str(trigger.get("kind", "service")),
+                        trigger.get("icon"),
+                    )
+                    duration_seconds = max(0.0, now_ts - float(session.get("started_at", now_ts) or now_ts))
+                    sessions_by_disk.setdefault(disk_id, []).append(
+                        {
+                            "started_at_ts": started_at_ts,
+                            "started_at": dt.datetime.fromtimestamp(started_at_ts, tz=tzinfo).isoformat(),
+                            "ended_at_ts": None,
+                            "ended_at": None,
+                            "duration_seconds": duration_seconds,
+                            "duration_human": human_duration(duration_seconds),
+                            "active": True,
+                            "trigger_talker": {
+                                "id": talker_id,
+                                "name": talker_name,
+                                "kind": talker_kind,
+                                "icon": talker_icon,
+                            },
+                            "trigger_paths": list((session.get("trigger_paths") or session.get("recent_paths") or [])[:PATH_LIMIT]),
+                        }
+                    )
+
                 period_disks: dict[str, Any] = {}
                 total_spun_up_seconds = 0.0
                 for disk_id in disk_names:
@@ -1173,12 +1409,48 @@ class HistoryStore:
                                 "percent_human": human_percent(percent),
                             }
                         )
+                    temperature_points: list[dict[str, Any]] = []
+                    disk_temp_points = temp_by_disk_point.get(disk_id, {})
+                    temp_min_c = None
+                    temp_max_c = None
+                    temp_total = 0.0
+                    temp_samples = 0.0
+                    for point_key, values in sorted(disk_temp_points.items()):
+                        sample_count = float(values.get("sample_count", 0.0) or 0.0)
+                        if sample_count <= 0:
+                            continue
+                        avg_temp_c = float(values["sum_temp"]) / sample_count
+                        temp_min_c = avg_temp_c if temp_min_c is None else min(temp_min_c, float(values["min_temp_c"]))
+                        temp_max_c = avg_temp_c if temp_max_c is None else max(temp_max_c, float(values["max_temp_c"]))
+                        temp_total += float(values["sum_temp"])
+                        temp_samples += sample_count
+                        temperature_points.append(
+                            {
+                                "timestamp": point_key,
+                                "value_c": avg_temp_c,
+                                "value_human": human_temperature(avg_temp_c),
+                                "min_c": float(values["min_temp_c"]),
+                                "max_c": float(values["max_temp_c"]),
+                            }
+                        )
+                    avg_temp_c = (temp_total / temp_samples) if temp_samples > 0 else None
+                    sessions = sorted(sessions_by_disk.get(disk_id, []), key=lambda item: item["started_at_ts"], reverse=True)[:SESSION_ROWS_LIMIT]
                     period_disks[disk_id] = {
                         "spun_up_seconds": spun_up_seconds,
                         "spun_up_human": human_duration(spun_up_seconds),
                         "spun_up_percent": (spun_up_seconds / window_seconds * 100.0) if window_seconds > 0 else 0.0,
                         "spun_up_percent_human": human_percent((spun_up_seconds / window_seconds * 100.0) if window_seconds > 0 else 0.0),
                         "top_talkers": top,
+                        "sessions": sessions,
+                        "temperature": {
+                            "points": temperature_points,
+                            "min_c": temp_min_c,
+                            "max_c": temp_max_c,
+                            "avg_c": avg_temp_c,
+                            "min_human": human_temperature(temp_min_c),
+                            "max_human": human_temperature(temp_max_c),
+                            "avg_human": human_temperature(avg_temp_c),
+                        },
                     }
 
                 top_array = normalize_talker_seconds(list(array_talkers.values()), total_spun_up_seconds)
@@ -1327,14 +1599,35 @@ class DiskTalkersCollector:
             pass
         self.monitor = None
 
-    def refresh_inventory_if_needed(self, force: bool = False) -> None:
+    def session_record(self, disk_id: str, session: dict[str, Any], ended_at: float | None = None) -> dict[str, Any]:
+        trigger = session.get("trigger_talker") or unattributed_talker()
+        trigger_paths = list((session.get("trigger_paths") or session.get("recent_paths") or [])[:PATH_LIMIT])
+        ended_value = ended_at if ended_at is not None else None
+        effective_end = float(ended_at if ended_at is not None else time.time())
+        duration_seconds = max(0.0, effective_end - float(session.get("started_at", effective_end) or effective_end))
+        return {
+            "disk_id": disk_id,
+            "started_at": int(session.get("started_at", effective_end) or effective_end),
+            "ended_at": int(ended_value) if ended_value is not None else None,
+            "duration_seconds": duration_seconds,
+            "trigger_talker": {
+                "id": trigger.get("id", UNATTRIBUTED_TALKER_ID),
+                "name": trigger.get("name", UNATTRIBUTED_TALKER_NAME),
+                "kind": trigger.get("kind", "service"),
+                "icon": trigger.get("icon", dict(UNATTRIBUTED_TALKER_ICON)),
+            },
+            "trigger_paths": trigger_paths,
+        }
+
+    def refresh_inventory_if_needed(self, force: bool = False) -> list[dict[str, Any]]:
         now = time.time()
         if not force and (now - self.last_inventory_refresh) < INVENTORY_REFRESH_SECONDS and self.disks:
-            return
+            return []
 
         disks = build_disk_inventory()
         current_states = {disk["id"]: disk["status"]["state"] for disk in disks}
         known_ids = {disk["id"] for disk in disks}
+        closed_sessions: list[dict[str, Any]] = []
 
         if self.monitor is not None:
             watch_mounts = [disk["mount"] for disk in disks]
@@ -1350,10 +1643,12 @@ class DiskTalkersCollector:
             previous = self.disk_states.get(disk_id)
             if disk["kind"] == "disk":
                 if state == "spun_down":
+                    if previous == "spun_up" and disk_id in self.sessions:
+                        closed_sessions.append(self.session_record(disk_id, self.sessions[disk_id], ended_at=now))
                     self.sessions.pop(disk_id, None)
                     self.history_talker_cache.pop(disk_id, None)
                 elif previous == "spun_down":
-                    self.sessions[disk_id] = new_session(now - SPINUP_GRACE_SECONDS)
+                    self.sessions[disk_id] = new_session(now)
                 else:
                     self.sessions.setdefault(disk_id, new_session(now))
             else:
@@ -1361,6 +1656,8 @@ class DiskTalkersCollector:
 
         for disk_id in list(self.sessions):
             if disk_id not in known_ids:
+                if disk_id in self.sessions and disk_id in self.disk_states and self.disk_states.get(disk_id) == "spun_up":
+                    closed_sessions.append(self.session_record(disk_id, self.sessions[disk_id], ended_at=now))
                 self.sessions.pop(disk_id, None)
                 self.history_talker_cache.pop(disk_id, None)
 
@@ -1369,6 +1666,7 @@ class DiskTalkersCollector:
         self.last_inventory_refresh = now
         self.update_disk_rates(now)
         self.sample_container_rates(now)
+        return closed_sessions
 
     def prune_pid_cache(self) -> None:
         now = time.time()
@@ -1532,6 +1830,18 @@ class DiskTalkersCollector:
         path: str,
     ) -> None:
         state = session["talkers"].setdefault(talker["id"], new_talker_state(talker))
+        session["last_seen"] = max(float(session.get("last_seen", 0.0) or 0.0), timestamp)
+        bounded_unique_prepend(session["recent_paths"], path, PATH_LIMIT)
+        if session.get("trigger_talker") is None:
+            session["trigger_talker"] = {
+                "id": talker["id"],
+                "name": talker["name"],
+                "kind": talker["kind"],
+                "icon": talker["icon"],
+            }
+            session["trigger_pid"] = pid
+        if timestamp <= (float(session.get("started_at", timestamp) or timestamp) + SPINUP_CAPTURE_WINDOW_SECONDS):
+            bounded_unique_prepend(session["trigger_paths"], path, PATH_LIMIT)
         state["name"] = talker["name"]
         state["kind"] = talker["kind"]
         state["icon"] = talker["icon"]
@@ -1987,6 +2297,8 @@ class DiskTalkersCollector:
                     "fstype": disk["fstype"],
                     "kind": disk["kind"],
                     "status": disk["status"],
+                    "temperature_c": disk.get("temperature_c"),
+                    "temperature_human": disk.get("temperature_human", "-"),
                     "rates": self.disk_rates.get(
                         disk["id"],
                         {"read_bps": 0.0, "write_bps": 0.0, "read_human": "-", "write_human": "-"},
@@ -2023,8 +2335,13 @@ def write_state(path: str, payload: dict[str, Any]) -> None:
     os.replace(temp_name, target)
 
 
-def attach_history(payload: dict[str, Any], history_store: HistoryStore | None, disks: list[dict[str, Any]]) -> dict[str, Any]:
-    payload["history"] = history_store.build_summary(disks) if history_store is not None else {"default_period": "daily", "periods": {}}
+def attach_history(
+    payload: dict[str, Any],
+    history_store: HistoryStore | None,
+    disks: list[dict[str, Any]],
+    active_sessions: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    payload["history"] = history_store.build_summary(disks, active_sessions=active_sessions) if history_store is not None else {"default_period": "daily", "periods": {}}
     return payload
 
 
@@ -2042,7 +2359,7 @@ def collect_once(state_file: str, recent_window: int, max_talkers: int, history_
         collector = DiskTalkersCollector(recent_window=recent_window, max_talkers=max_talkers)
         collector.refresh_inventory_if_needed(force=True)
         collector.drain_kernel_events()
-        payload = attach_history(collector.build_payload(), history_store, collector.disks)
+        payload = attach_history(collector.build_payload(), history_store, collector.disks, active_sessions=collector.sessions)
         write_state(state_file, payload)
         return payload
 
@@ -2066,8 +2383,11 @@ def run_daemon(
 
         while True:
             try:
-                collector.refresh_inventory_if_needed()
+                closed_sessions = collector.refresh_inventory_if_needed()
                 collector.drain_kernel_events()
+                if history_store is not None:
+                    for session in closed_sessions:
+                        history_store.record_spinup_session(session)
 
                 now = time.time()
                 if now >= next_publish:
@@ -2077,7 +2397,7 @@ def run_daemon(
                         history_store.record_payload(payload, sample_seconds=sample_seconds, timestamp=now)
                         last_history_sample = now
                         next_history_sample = now + float(history_sample_interval)
-                    payload = attach_history(payload, history_store, collector.disks)
+                    payload = attach_history(payload, history_store, collector.disks, active_sessions=collector.sessions)
                     write_state(state_file, payload)
                     next_publish = now + float(publish_interval)
             except Exception as exc:  # pragma: no cover - runtime guard on Unraid host

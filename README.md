@@ -7,6 +7,9 @@
 Unraid plugin that adds a dedicated WebUI page to show which containers, VMs,
 or host services are probably keeping each array disk or pool busy.
 
+It also keeps lightweight history for per-disk spin-up sessions and exposes a
+compact temperature sparkline for each disk.
+
 Disk Talkers is already testable before Community Apps listing by installing the
 plugin URL directly from Unraid.
 

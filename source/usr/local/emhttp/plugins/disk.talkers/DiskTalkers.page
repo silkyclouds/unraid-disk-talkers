@@ -407,6 +407,10 @@ html.dt-host-light {
   width: 110px;
 }
 
+.dt-col-temp {
+  width: 138px;
+}
+
 .dt-disk {
   font-size: 22px;
   font-weight: 700;
@@ -528,6 +532,63 @@ html.dt-host-light {
   letter-spacing: 0.01em;
 }
 
+.dt-temp-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dt-temp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dt-temp-value {
+  color: var(--dt-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.dt-temp-range {
+  color: var(--dt-text-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dt-temp-spark {
+  width: 100%;
+  height: 28px;
+  display: block;
+}
+
+.dt-temp-spark .track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 1;
+}
+
+.dt-temp-spark .area {
+  fill: rgba(255, 149, 92, 0.12);
+}
+
+.dt-temp-spark .line {
+  fill: none;
+  stroke: #ff955c;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.dt-temp-spark .point {
+  fill: #ffd1ba;
+  stroke: rgba(12, 17, 24, 0.9);
+  stroke-width: 1;
+}
+
 .dt-history {
   margin-top: 14px;
   padding: 14px;
@@ -606,6 +667,115 @@ html.dt-host-light {
   color: var(--dt-text-soft);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.dt-history-sessions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dt-history-sessions-head {
+  color: var(--dt-text-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dt-history-sessions-note {
+  margin-top: 4px;
+  color: var(--dt-text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dt-session-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  table-layout: fixed;
+}
+
+.dt-session-table th,
+.dt-session-table td {
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+  vertical-align: top;
+}
+
+.dt-session-table th {
+  color: var(--dt-text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dt-session-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.dt-session-time,
+.dt-session-duration {
+  color: var(--dt-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dt-session-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dt-text);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.dt-session-source .dt-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.dt-session-source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-session-source-meta {
+  margin-top: 3px;
+  color: var(--dt-text-soft);
+  font-size: 10px;
+}
+
+.dt-session-active {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(116, 183, 255, 0.12);
+  color: #b9dbff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dt-session-files {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dt-session-file {
+  color: var(--dt-text-soft);
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .dt-history-chart-wrap {
@@ -1728,6 +1898,73 @@ html.dt-host-light {
     return `${numeric.toFixed(0)}%`;
   }
 
+  function formatLocalDateTime(value) {
+    if (!value) {
+      return "-";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+    return date.toLocaleString([], {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function renderTemperatureSparkline(temperature) {
+    const points = ((temperature && temperature.points) || []).filter((point) => Number.isFinite(Number(point.value_c)));
+    if (!points.length) {
+      return '<span class="dt-empty">-</span>';
+    }
+
+    const width = 118;
+    const height = 28;
+    const paddingX = 2;
+    const paddingY = 3;
+    const values = points.map((point) => Number(point.value_c));
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(max - min, 1);
+    const lastIndex = Math.max(points.length - 1, 1);
+    const coords = points.map((point, index) => {
+      const x = paddingX + ((width - (paddingX * 2)) * (points.length === 1 ? 0.5 : (index / lastIndex)));
+      const y = paddingY + ((height - (paddingY * 2)) * (1 - ((Number(point.value_c) - min) / range)));
+      return { x, y, point };
+    });
+    const linePath = coords.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+    const areaPath = `M ${coords[0].x.toFixed(2)} ${(height - paddingY).toFixed(2)} ${coords.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ")} L ${coords[coords.length - 1].x.toFixed(2)} ${(height - paddingY).toFixed(2)} Z`;
+    const lastPoint = coords[coords.length - 1];
+
+    return `
+      <svg class="dt-temp-spark" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+        <path class="track" d="M ${paddingX} ${(height - paddingY).toFixed(2)} L ${(width - paddingX).toFixed(2)} ${(height - paddingY).toFixed(2)}"></path>
+        <path class="area" d="${areaPath}"></path>
+        <path class="line" d="${linePath}"></path>
+        <circle class="point" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="2.8"></circle>
+      </svg>
+    `;
+  }
+
+  function renderTemperatureCell(disk, history) {
+    const current = disk.temperature_human || "-";
+    const temperature = history && history.temperature ? history.temperature : null;
+    const range = temperature && temperature.min_c != null && temperature.max_c != null
+      ? `${escapeHtml(temperature.min_human || "-")} - ${escapeHtml(temperature.max_human || "-")}`
+      : "No history";
+    return `
+      <div class="dt-temp-wrap">
+        <div class="dt-temp-row">
+          <span class="dt-temp-value">${escapeHtml(current)}</span>
+          <span class="dt-temp-range">${range}</span>
+        </div>
+        ${renderTemperatureSparkline(temperature)}
+      </div>
+    `;
+  }
+
   function isUnattributedTalker(talker) {
     const name = (talker && talker.name ? talker.name : "").toLowerCase();
     const id = talker && talker.id ? talker.id : "";
@@ -1840,6 +2077,57 @@ html.dt-host-light {
     `;
   }
 
+  function renderSpinupSessions(sessions) {
+    if (!sessions || !sessions.length) {
+      return `
+        <div class="dt-history-sessions">
+          <div class="dt-history-sessions-head">Spin-up sessions</div>
+          <div class="dt-history-sessions-note">No spin-up starts recorded in this window yet.</div>
+        </div>
+      `;
+    }
+
+    const rows = sessions.map((session) => {
+      const trigger = session.trigger_talker || {};
+      const sourceMeta = session.active ? '<span class="dt-session-active">Running</span>' : '';
+      const files = (session.trigger_paths || []).length
+        ? `<div class="dt-session-files">${session.trigger_paths.map((path) => `<div class="dt-session-file">${escapeHtml(path)}</div>`).join("")}</div>`
+        : '<span class="dt-empty">-</span>';
+      return `
+        <tr>
+          <td class="dt-session-time">${escapeHtml(formatLocalDateTime(session.started_at))}</td>
+          <td class="dt-session-duration">${escapeHtml(session.duration_human || "-")}</td>
+          <td>
+            <div class="dt-session-source">
+              ${iconHtml(trigger.icon, trigger.name || "Service")}
+              <span class="dt-session-source-name">${escapeHtml(trigger.name || "Other activity")}</span>
+            </div>
+            ${sourceMeta ? `<div class="dt-session-source-meta">${sourceMeta}</div>` : ""}
+          </td>
+          <td>${files}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return `
+      <div class="dt-history-sessions">
+        <div class="dt-history-sessions-head">Spin-up sessions</div>
+        <div class="dt-history-sessions-note">Latest session starts in this ${escapeHtml(selectedPeriod)} window.</div>
+        <table class="dt-session-table">
+          <thead>
+            <tr>
+              <th style="width:124px">Started</th>
+              <th style="width:86px">Duration</th>
+              <th style="width:190px">Source</th>
+              <th>Files at spin-up</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderTalker(disk, talker, detailKey) {
     const pidDetails = talker.pid_details || [];
     let subtitle = "";
@@ -1887,6 +2175,7 @@ html.dt-host-light {
             ${talkers.length ? talkers.map(renderHistoryLegendItem).join("") : '<div class="dt-empty">No clear usage source yet</div>'}
           </div>
         </div>
+        ${renderSpinupSessions(history.sessions || [])}
       </div>
     `;
   }
@@ -2320,6 +2609,7 @@ html.dt-host-light {
           <td class="dt-col-status">
             <span class="dt-status ${escapeHtml(disk.status.state)}">${escapeHtml(disk.status.label)}</span>
           </td>
+          <td class="dt-col-temp">${renderTemperatureCell(disk, historyForDisk)}</td>
           <td class="dt-col-rate"><span class="dt-rate">${escapeHtml(readRate)}</span></td>
           <td class="dt-col-rate"><span class="dt-rate">${escapeHtml(writeRate)}</span></td>
           <td>
@@ -2343,6 +2633,7 @@ html.dt-host-light {
           <tr>
             <th class="dt-col-disk">Disk</th>
             <th class="dt-col-status">Status</th>
+            <th class="dt-col-temp">Temp</th>
             <th class="dt-col-rate">Read</th>
             <th class="dt-col-rate">Write</th>
             <th>Disk users</th>

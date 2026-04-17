@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.17c">
+<!ENTITY version "2026.04.17d">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY sourceLOC "&pluginLOC;/source">
@@ -19,6 +19,10 @@
 >
 
 <CHANGES>
+###2026.04.17d
+- Added per-disk spin-up session history rows with start time, duration, probable source, and files seen at spin-up.
+- Added compact per-disk temperature sparklines based on recorded history.
+
 ###2026.04.17c
 - Fixed the historical summary panels so the usage and timeline cards stay contained inside their parent on wide layouts.
 

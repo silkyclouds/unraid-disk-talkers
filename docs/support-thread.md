@@ -18,6 +18,9 @@ It correlates:
 - Array-wide summary of the apps currently keeping HDDs spun up.
 - Historical usage charts with attribution percentages and estimated spin-up
   time.
+- Per-disk spin-up session rows with start time, duration, probable source, and
+  files seen at spin-up.
+- Compact temperature sparklines per disk.
 - Estimated power and electricity cost from configurable HDD watt ranges and
   tariffs.
 - Mount-audit drawer to flag containers using `/mnt/user` or array-backed paths
