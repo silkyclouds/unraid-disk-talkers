@@ -40,6 +40,15 @@ Cond="$var['mdState'] == 'STARTED'"
 }
 
 html.dt-host-light {
+  --dt-bg: #f3f6fa;
+  --dt-panel: #f8fbff;
+  --dt-panel-2: #edf3f8;
+  --dt-border: #d6e0eb;
+  --dt-border-soft: #dee6ef;
+  --dt-text: #1f2d3d;
+  --dt-text-soft: #5b6c80;
+  --dt-text-faint: #748599;
+  --dt-shadow: 0 18px 42px rgba(16, 34, 56, 0.08);
   --dt-action-bg: #f7fafc;
   --dt-action-border: #bac7d5;
   --dt-action-text: #1d2a38;
@@ -59,6 +68,131 @@ html.dt-host-light {
   --dt-notice-error-bg: #fdecef;
   --dt-notice-error-border: #e3b9c0;
   --dt-notice-error-text: #6c2330;
+}
+
+html.dt-host-light .dt-summary {
+  background:
+    radial-gradient(circle at top right, rgba(116, 183, 255, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(242, 247, 252, 0.98));
+}
+
+html.dt-host-light .dt-audit {
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.98), rgba(243, 247, 252, 0.98));
+}
+
+html.dt-host-light .dt-audit-card,
+html.dt-host-light .dt-summary-stat,
+html.dt-host-light .dt-summary-chart-panel,
+html.dt-host-light .dt-summary-timeline-panel,
+html.dt-host-light .dt-history,
+html.dt-host-light .dt-timeline-card,
+html.dt-host-light .dt-dependency-card,
+html.dt-host-light .dt-empty-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 252, 0.98));
+  border-color: var(--dt-border-soft);
+}
+
+html.dt-host-light .dt-table {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 249, 253, 0.99));
+  border-color: var(--dt-border);
+}
+
+html.dt-host-light .dt-table th {
+  background: rgba(238, 244, 250, 0.96);
+  color: var(--dt-text-soft);
+}
+
+html.dt-host-light .dt-table td,
+html.dt-host-light .dt-session-table td,
+html.dt-host-light .dt-session-table th {
+  color: var(--dt-text);
+}
+
+html.dt-host-light .dt-table tbody tr:hover {
+  background: rgba(49, 107, 173, 0.045);
+}
+
+html.dt-host-light .dt-talker {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 245, 251, 0.98));
+  border-color: #c8d4e2;
+}
+
+html.dt-host-light .dt-talker-btn:hover {
+  border-color: #9db6d0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(233, 240, 247, 0.99));
+}
+
+html.dt-host-light .dt-icon {
+  background: #f2f6fb;
+  border-color: #c9d4df;
+}
+
+html.dt-host-light .dt-icon .fa {
+  color: #405162;
+}
+
+html.dt-host-light .dt-status.spun_up {
+  background: #dff4e4;
+  color: #1f7a3f;
+}
+
+html.dt-host-light .dt-status.spun_down {
+  background: #e8edf4;
+  color: #5c6c7c;
+}
+
+html.dt-host-light .dt-status.active {
+  background: #e0efff;
+  color: #215d9c;
+}
+
+html.dt-host-light .dt-audit-badge.high {
+  background: #fde7eb;
+  color: #a33b4f;
+}
+
+html.dt-host-light .dt-audit-badge.medium {
+  background: #fff1d9;
+  color: #9a6400;
+}
+
+html.dt-host-light .dt-audit-badge.low {
+  background: #e3f0ff;
+  color: #2a69ac;
+}
+
+html.dt-host-light .dt-temp-spark .track,
+html.dt-host-light .dt-history-chart-track,
+html.dt-host-light .dt-timeline-grid-line {
+  stroke: rgba(45, 67, 90, 0.12);
+}
+
+html.dt-host-light .dt-session-active {
+  background: rgba(49, 107, 173, 0.12);
+  color: #2a69ac;
+}
+
+html.dt-host-light .dt-modal-card,
+html.dt-host-light .dt-settings-section,
+html.dt-host-light .dt-detail-card {
+  background: #f8fbff;
+  border-color: #d6e0eb;
+}
+
+html.dt-host-light .dt-field input,
+html.dt-host-light .dt-field select,
+html.dt-host-light .dt-path-item,
+html.dt-host-light .dt-detail-pill,
+html.dt-host-light .dt-modal-close {
+  background: #ffffff;
+  border-color: #d6e0eb;
+  color: #1f2d3d;
+}
+
+html.dt-host-light .dt-toast,
+html.dt-host-light .dt-tooltip {
+  background: rgba(251, 253, 255, 0.98);
+  border-color: #d6e0eb;
 }
 
 .dt-meta {

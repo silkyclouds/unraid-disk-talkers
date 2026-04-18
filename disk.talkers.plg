@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.17d">
+<!ENTITY version "2026.04.18a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "d7772b0ce2909683d6d5206341a44103">
+<!ENTITY packageMD5 "0b1b2f3702768c9b5a46cb92bf3c1db9">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.17d/disk.talkers-package-2026.04.17d-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.18a/disk.talkers-package-2026.04.18a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,9 @@
 >
 
 <CHANGES>
+###2026.04.18a
+- Fixed light-theme readability by adding explicit light-surface and text styling for the table, history cards, and talker chips.
+
 ###2026.04.17d
 - Added per-disk spin-up session history rows with start time, duration, probable source, and files seen at spin-up.
 - Added compact per-disk temperature sparklines based on recorded history.

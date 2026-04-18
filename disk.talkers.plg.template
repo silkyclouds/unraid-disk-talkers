@@ -25,6 +25,9 @@
 >
 
 <CHANGES>
+###2026.04.18a
+- Fixed light-theme readability by adding explicit light-surface and text styling for the table, history cards, and talker chips.
+
 ###2026.04.17d
 - Added per-disk spin-up session history rows with start time, duration, probable source, and files seen at spin-up.
 - Added compact per-disk temperature sparklines based on recorded history.
