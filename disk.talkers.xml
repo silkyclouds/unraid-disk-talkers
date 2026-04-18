@@ -17,5 +17,5 @@
   <MinVer>6.12.0</MinVer>
   <Project>https://github.com/silkyclouds/unraid-disk-talkers</Project>
   <Support>https://forums.unraid.net/topic/198305-plugin-disk-talkers/</Support>
-  <Icon>https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/assets/disk-talkers-icon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/assets/disk-talkers-icon.png</Icon>
 </Containers>
