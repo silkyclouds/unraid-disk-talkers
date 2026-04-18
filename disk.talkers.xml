@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Containers>
+  <Plugin>True</Plugin>
+  <PluginURL>https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg</PluginURL>
+  <PluginAuthor>meaning</PluginAuthor>
+  <Beta>False</Beta>
+  <Category>Tools:System:Monitoring:</Category>
+  <Date>2026-04-18</Date>
+  <Name>Disk Talkers</Name>
+  <Description>
+    Disk Talkers adds a dedicated Unraid page that shows what is actively keeping array disks and pools spun up, including live disk users, historical usage, spin-up session history, and compact temperature sparklines.
+  </Description>
+  <Overview>
+    Identifies the apps, containers, VMs, and host services that are touching your disks, helps surface /mnt/user and array-backed mounts that may be causing avoidable spin-ups, and provides lightweight historical attribution with estimated energy and cost.
+  </Overview>
+  <Requires>Python 3 for UNRAID (6.11+)</Requires>
+  <MinVer>6.12.0</MinVer>
+  <Project>https://github.com/silkyclouds/unraid-disk-talkers</Project>
+  <Support>https://forums.unraid.net/topic/198305-plugin-disk-talkers/</Support>
+  <Icon>https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/assets/disk-talkers-icon.svg</Icon>
+</Containers>

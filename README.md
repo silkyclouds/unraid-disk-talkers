@@ -52,8 +52,12 @@ notice until `Python 3 for UNRAID (6.11+)` is installed.
 
 - `disk.talkers.local.plg`: local development manifest that installs directly
   from the synced `source/` tree on your Unraid host.
+- `disk.talkers.xml`: Community Applications plugin metadata entry used by CA to
+  list the plugin from this repository.
 - `disk.talkers.plg.template`: public release manifest template used to produce
   the distributable `.plg`.
+- `ca_profile.xml`: maintainer metadata shown by Community Applications for this
+  repository.
 - `build-release.sh`: builds the public `.txz` package and generated `.plg`
   manifest for Community Apps publication.
 - `release.env.example`: variables required for the GitHub/raw/support URLs used
