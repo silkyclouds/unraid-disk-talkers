@@ -26,6 +26,7 @@ PLUGIN_NAME = "disk.talkers"
 CONFIG_PATH = f"/boot/config/plugins/{PLUGIN_NAME}/{PLUGIN_NAME}.cfg"
 DISKS_INI_PATH = "/var/local/emhttp/disks.ini"
 SHARES_CFG_DIR = "/boot/config/shares"
+SHARES_RUNTIME_INI = "/var/local/emhttp/shares.ini"
 LOCK_PATH = "/tmp/disk.talkers/collector.lock"
 DEFAULT_STATE_PATH = "/tmp/disk.talkers/state.json"
 DEFAULT_HISTORY_PATH = f"/boot/config/plugins/{PLUGIN_NAME}/history.sqlite3"
@@ -167,6 +168,10 @@ def load_share_configs(directory: str = SHARES_CFG_DIR) -> dict[str, dict[str, s
     for path in root.glob("*.cfg"):
         shares[path.stem] = read_cfg(str(path))
     return shares
+
+
+def load_share_runtime(path: str = SHARES_RUNTIME_INI) -> dict[str, dict[str, str]]:
+    return parse_disks_ini(path)
 
 
 def list_mounts() -> list[dict[str, str]]:
@@ -1566,6 +1571,7 @@ class DiskTalkersCollector:
         self.max_talkers = max_talkers
         self.resolver = Resolver()
         self.share_configs = load_share_configs()
+        self.share_runtime = load_share_runtime()
         self.disks: list[dict[str, Any]] = []
         self.sessions: dict[str, dict[str, Any]] = {}
         self.history_talker_cache: dict[str, list[dict[str, Any]]] = {}
@@ -2142,6 +2148,28 @@ class DiskTalkersCollector:
         rows.sort(key=lambda item: (0 if item["active"] else 1, -item["disk_count"], -item["event_count"], item["name"].lower()))
         return rows
 
+    def share_metadata(self, share: str) -> tuple[dict[str, str], str, str]:
+        share_cfg = self.share_configs.get(share, {})
+        runtime_cfg = self.share_runtime.get(share, {})
+        use_cache = (runtime_cfg.get("useCache") or share_cfg.get("shareUseCache") or "").lower()
+        cache_pool = runtime_cfg.get("cachePool") or share_cfg.get("shareCachePool") or "cache"
+        return runtime_cfg, use_cache, cache_pool
+
+    def exclusive_share_target(self, share: str, cache_pool: str, runtime_cfg: dict[str, str]) -> tuple[bool, str]:
+        share_root = f"/mnt/user/{share}"
+        try:
+            if os.path.islink(share_root):
+                target = os.path.realpath(share_root).rstrip("/")
+                if target.startswith("/mnt/") and not re.match(r"/mnt/(?:disk\d+|user|user0)(?:/|$)", target):
+                    return True, target
+        except OSError:
+            pass
+
+        if runtime_cfg.get("exclusive", "").lower() == "yes":
+            return True, f"/mnt/{cache_pool}/{share}".rstrip("/")
+
+        return False, ""
+
     def classify_mount_source(self, source: str) -> dict[str, str]:
         source = canonical_user_path(source.rstrip("/"))
         pool_mounts = {disk["mount"].rstrip("/"): disk for disk in self.disks if disk["kind"] != "disk"}
@@ -2158,17 +2186,24 @@ class DiskTalkersCollector:
         if source.startswith("/mnt/user/"):
             relative = source.split("/", 3)[3] if len(source.split("/", 3)) > 3 else ""
             share = relative.split("/", 1)[0] if relative else ""
-            share_cfg = self.share_configs.get(share, {})
-            use_cache = share_cfg.get("shareUseCache", "").lower()
-            cache_pool = share_cfg.get("shareCachePool", "") or "cache"
+            runtime_cfg, use_cache, cache_pool = self.share_metadata(share)
+            is_exclusive, exclusive_target = self.exclusive_share_target(share, cache_pool, runtime_cfg)
 
             if use_cache == "only":
+                if is_exclusive:
+                    return {
+                        "category": "exclusive_pool_share",
+                        "severity": "safe",
+                        "label": "exclusive pool share",
+                        "reason": f"Share `{share}` is exclusive; `/mnt/user/{share}` resolves directly to `{exclusive_target}` and bypasses shfs/FUSE.",
+                        "suggestion": "",
+                    }
                 return {
                     "category": "pool_only_user_share",
                     "severity": "low",
                     "label": "pool-only share",
-                    "reason": f"Share `{share}` is pool-only on `{cache_pool}`, but the app still goes through `/mnt/user`.",
-                    "suggestion": "A direct pool path would avoid shfs/user-share indirection.",
+                    "reason": f"Share `{share}` is pool-only on `{cache_pool}`, but exclusive access is not active so `/mnt/user` may still go through shfs/FUSE.",
+                    "suggestion": "Enable exclusive shares or use the direct pool path if you want to avoid user-share indirection.",
                 }
 
             if use_cache == "no":

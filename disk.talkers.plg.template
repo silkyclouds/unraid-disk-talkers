@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.04.21a
+- Treat Unraid 6.12+ exclusive pool-only `/mnt/user/&lt;share&gt;` mounts as safe in the Docker mount audit because they resolve directly to the pool and bypass shfs/FUSE.
+- Keep pool-only `/mnt/user` mounts as a low-severity warning when exclusive access is not active.
+
 ###2026.04.18a
 - Fixed light-theme readability by adding explicit light-surface and text styling for the table, history cards, and talker chips.
 

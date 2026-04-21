@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.18a">
+<!ENTITY version "2026.04.21a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "0b1b2f3702768c9b5a46cb92bf3c1db9">
+<!ENTITY packageMD5 "17e5367c448ee9fe7c5697bdfa32844c">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.18a/disk.talkers-package-2026.04.18a-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.21a/disk.talkers-package-2026.04.21a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.04.21a
+- Treat Unraid 6.12+ exclusive pool-only `/mnt/user/&lt;share&gt;` mounts as safe in the Docker mount audit because they resolve directly to the pool and bypass shfs/FUSE.
+- Keep pool-only `/mnt/user` mounts as a low-severity warning when exclusive access is not active.
+
 ###2026.04.18a
 - Fixed light-theme readability by adding explicit light-surface and text styling for the table, history cards, and talker chips.
 
