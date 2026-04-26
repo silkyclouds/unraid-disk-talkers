@@ -5,7 +5,7 @@
   <PluginAuthor>meaning</PluginAuthor>
   <Beta>False</Beta>
   <Category>Tools:System:Monitoring:</Category>
-  <Date>2026-04-18</Date>
+  <Date>2026-04-26</Date>
   <Name>Disk Talkers</Name>
   <Description>
     Disk Talkers adds a dedicated Unraid page that shows what is actively keeping array disks and pools spun up, including live disk users, historical usage, spin-up session history, and compact temperature sparklines.

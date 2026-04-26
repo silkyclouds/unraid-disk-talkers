@@ -12,6 +12,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import sqlite3
 import struct
 import subprocess
@@ -40,6 +41,13 @@ DEFAULT_ELECTRICITY_PEAK_RATE = 0.0
 DEFAULT_ELECTRICITY_OFFPEAK_RATE = 0.0
 DEFAULT_ELECTRICITY_OFFPEAK_START = "22:00"
 DEFAULT_ELECTRICITY_OFFPEAK_END = "07:00"
+UNRAID_PATH = "/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin"
+KNOWN_COMMAND_PATHS = {
+    "docker": "/usr/bin/docker",
+    "findmnt": "/bin/findmnt",
+    "fuser": "/usr/bin/fuser",
+    "mdcmd": "/usr/local/sbin/mdcmd",
+}
 
 RESERVED_MOUNTS = {
     "/mnt",
@@ -117,9 +125,35 @@ FAN_EVENT_MASK = FAN_OPEN | FAN_OPEN_EXEC | FAN_MODIFY | FAN_CLOSE_WRITE | FAN_C
 AT_FDCWD = -100
 METADATA_STRUCT = struct.Struct("IBBHQii")
 
+os.environ["PATH"] = UNRAID_PATH + (f":{os.environ['PATH']}" if os.environ.get("PATH") else "")
+
+
+def resolve_command(command: list[str]) -> list[str]:
+    if not command:
+        return command
+    binary = command[0]
+    if "/" in binary:
+        return command
+    known_path = KNOWN_COMMAND_PATHS.get(binary)
+    if known_path and os.path.exists(known_path):
+        return [known_path, *command[1:]]
+    resolved = shutil.which(binary)
+    if resolved:
+        return [resolved, *command[1:]]
+    return command
+
+
+def run_command(command: list[str]) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(resolve_command(command), capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return None
+
 
 def shell(command: list[str]) -> str:
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
+    proc = run_command(command)
+    if proc is None:
+        return ""
     return proc.stdout.strip()
 
 
@@ -587,13 +621,8 @@ class Resolver:
             self._container_cache_until = now + 30
             return self._containers
 
-        inspect_proc = subprocess.run(
-            ["docker", "inspect", *ids],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if inspect_proc.returncode != 0:
+        inspect_proc = run_command(["docker", "inspect", *ids])
+        if inspect_proc is None or inspect_proc.returncode != 0:
             self._container_cache_until = now + 10
             return self._containers
 
@@ -1739,13 +1768,8 @@ class DiskTalkersCollector:
             if not any(mount.startswith("/mnt/user/") or mount.startswith("/mnt/user0/") for mount in container["mounts"]):
                 continue
 
-            top_proc = subprocess.run(
-                ["docker", "top", container["name"], "-eo", "pid"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if top_proc.returncode != 0:
+            top_proc = run_command(["docker", "top", container["name"], "-eo", "pid"])
+            if top_proc is None or top_proc.returncode != 0:
                 continue
 
             pids = [int(line.strip()) for line in top_proc.stdout.splitlines()[1:] if line.strip().isdigit()]

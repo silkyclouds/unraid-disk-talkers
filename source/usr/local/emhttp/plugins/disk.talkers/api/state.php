@@ -71,7 +71,8 @@ if ($stateWasBlocked && is_file($rcScript)) {
         clearstatcache(true, $stateFile);
     } elseif (($refreshRequested || $stateIsStale) && is_file($collector)) {
         $cmd = sprintf(
-            'python3 %s --once --config %s --state-file %s >/dev/null 2>&1',
+            '%s %s --once --config %s --state-file %s >/dev/null 2>&1',
+            escapeshellarg($pythonPath),
             escapeshellarg($collector),
             escapeshellarg($configPath),
             escapeshellarg($stateFile)
@@ -83,7 +84,8 @@ if ($stateWasBlocked && is_file($rcScript)) {
 
 if ($stateWasBlocked && !is_file($rcScript) && is_file($collector)) {
     $cmd = sprintf(
-        'python3 %s --once --config %s --state-file %s >/dev/null 2>&1',
+        '%s %s --once --config %s --state-file %s >/dev/null 2>&1',
+        escapeshellarg($pythonPath),
         escapeshellarg($collector),
         escapeshellarg($configPath),
         escapeshellarg($stateFile)

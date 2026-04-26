@@ -6,6 +6,8 @@ pidfile="/var/run/${plugin}.pid"
 python_plugin_name="Python 3 for UNRAID (6.11+)"
 python_plugin_url="https://forums.unraid.net/topic/175402-plugin-python-3-for-unraid-611/"
 
+export PATH="/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
 read_cfg() {
   if [ -f "$config" ]; then
     # shellcheck disable=SC1090

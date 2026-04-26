@@ -5,6 +5,7 @@ const DISK_TALKERS_PLUGIN = 'disk.talkers';
 const DISK_TALKERS_CONFIG_PATH = '/boot/config/plugins/disk.talkers/disk.talkers.cfg';
 const DISK_TALKERS_PYTHON_PLUGIN_NAME = 'Python 3 for UNRAID (6.11+)';
 const DISK_TALKERS_PYTHON_PLUGIN_SUPPORT_URL = 'https://forums.unraid.net/topic/175402-plugin-python-3-for-unraid-611/';
+const DISK_TALKERS_UNRAID_PATH = '/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin';
 
 function disk_talkers_defaults(): array {
     return [
@@ -99,7 +100,7 @@ function write_plugin_cfg(array $config, string $path = DISK_TALKERS_CONFIG_PATH
 }
 
 function disk_talkers_find_python3(): string {
-    $path = trim((string) shell_exec('command -v python3 2>/dev/null'));
+    $path = trim((string) shell_exec('PATH=' . escapeshellarg(DISK_TALKERS_UNRAID_PATH) . ' command -v python3 2>/dev/null'));
     return $path;
 }
 
