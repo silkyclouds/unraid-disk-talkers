@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.04.26a">
+<!ENTITY version "2026.05.03a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "1c04a5b1fef1f92092a3f32e54c2ebd5">
+<!ENTITY packageMD5 "12789b092b8d54f66421fae088564e2d">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.04.26a/disk.talkers-package-2026.04.26a-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.05.03a/disk.talkers-package-2026.05.03a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.05.03a
+- Reduced collector CPU use by caching idle `fuser` scans, caching historical summaries between refreshes, and relaxing the idle event loop.
+- Keeps the 5 second UI refresh while avoiding full per-disk host scans on every refresh.
+
 ###2026.04.26a
 - Fixed collector startup after reboot on hosts where the boot-time service environment does not include `/usr/local/sbin` in `PATH`.
 - Resolve Unraid host commands such as `mdcmd`, `findmnt`, `fuser`, and `docker` through known system paths and degrade cleanly if one is temporarily unavailable.

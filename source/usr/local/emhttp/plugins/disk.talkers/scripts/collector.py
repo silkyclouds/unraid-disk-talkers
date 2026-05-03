@@ -74,15 +74,19 @@ SERVICE_MAP = {
 
 PID_CACHE_TTL = 60.0
 INVENTORY_REFRESH_SECONDS = 5.0
-LOOP_SLEEP_SECONDS = 0.05
+LOOP_SLEEP_SECONDS = 0.2
 PROXY_RESOLVE_WINDOW = 15.0
 PATH_LIMIT = 5
 PID_LIMIT = 12
 SECTOR_SIZE = 512
 SUPPRESSED_TALKER_IDS = {"service:User Shares (shfs)"}
 CONTAINER_IO_ACTIVE_BPS = 4096.0
+FUSER_BUSY_BPS = 1024.0
+FUSER_BUSY_CACHE_SECONDS = 5.0
+FUSER_IDLE_CACHE_SECONDS = 15.0
 OPEN_PATHS_CACHE_TTL = 5.0
 DEFAULT_HISTORY_SAMPLE_INTERVAL = 300
+HISTORY_SUMMARY_CACHE_SECONDS = 60.0
 HISTORY_BUCKET_SECONDS = 3600
 SPINUP_CAPTURE_WINDOW_SECONDS = 30.0
 SESSION_ROWS_LIMIT = 3
@@ -1614,6 +1618,7 @@ class DiskTalkersCollector:
         self.pid_io_prev: dict[int, tuple[float, int, int]] = {}
         self.pid_rates: dict[int, dict[str, float | str]] = {}
         self.pid_open_paths_cache: dict[int, tuple[float, list[str]]] = {}
+        self.fuser_cache: dict[str, tuple[float, bool, list[dict[str, Any]]]] = {}
         self.last_inventory_refresh = 0.0
         self.monitor: FanotifyMonitor | None = None
         self.monitor_error = ""
@@ -1699,6 +1704,9 @@ class DiskTalkersCollector:
         self.disks = disks
         self.disk_states = current_states
         self.last_inventory_refresh = now
+        for disk_id in list(self.fuser_cache):
+            if disk_id not in known_ids or current_states.get(disk_id) == "spun_down":
+                self.fuser_cache.pop(disk_id, None)
         self.update_disk_rates(now)
         self.sample_container_rates(now)
         return closed_sessions
@@ -1827,6 +1835,20 @@ class DiskTalkersCollector:
         paths = read_open_paths(pid)
         self.pid_open_paths_cache[pid] = (now + OPEN_PATHS_CACHE_TTL, paths)
         return paths
+
+    def fuser_rows_for_disk(self, disk: dict[str, Any], now: float) -> list[dict[str, Any]]:
+        disk_rate = self.disk_rates.get(disk["id"], {})
+        is_busy = (float(disk_rate.get("read_bps", 0.0) or 0.0) + float(disk_rate.get("write_bps", 0.0) or 0.0)) >= FUSER_BUSY_BPS
+        cached = self.fuser_cache.get(disk["id"])
+        if cached is not None:
+            expires_at, cached_busy, rows = cached
+            if expires_at > now and (cached_busy or not is_busy):
+                return rows
+
+        rows = parse_fuser_output(disk["mount"], self.resolver)
+        ttl = FUSER_BUSY_CACHE_SECONDS if is_busy else FUSER_IDLE_CACHE_SECONDS
+        self.fuser_cache[disk["id"]] = (now + ttl, is_busy, rows)
+        return rows
 
     def identify_talker(self, pid: int, path: str) -> dict[str, Any]:
         now = time.time()
@@ -2033,7 +2055,7 @@ class DiskTalkersCollector:
                     "last_seen": session_talker["last_seen"],
                 }
 
-        for row in parse_fuser_output(disk["mount"], self.resolver):
+        for row in self.fuser_rows_for_disk(disk, now):
             if row["talker"]["id"] in SUPPRESSED_TALKER_IDS:
                 continue
             talker_id = row["talker"]["id"]
@@ -2439,14 +2461,18 @@ def run_daemon(
         next_publish = 0.0
         next_history_sample = 0.0
         last_history_sample = 0.0
+        next_history_summary = 0.0
+        history_summary: dict[str, Any] | None = None
 
         while True:
             try:
                 closed_sessions = collector.refresh_inventory_if_needed()
                 collector.drain_kernel_events()
+                history_changed = False
                 if history_store is not None:
                     for session in closed_sessions:
                         history_store.record_spinup_session(session)
+                        history_changed = True
 
                 now = time.time()
                 if now >= next_publish:
@@ -2456,7 +2482,14 @@ def run_daemon(
                         history_store.record_payload(payload, sample_seconds=sample_seconds, timestamp=now)
                         last_history_sample = now
                         next_history_sample = now + float(history_sample_interval)
-                    payload = attach_history(payload, history_store, collector.disks, active_sessions=collector.sessions)
+                        history_changed = True
+                    if history_store is None:
+                        payload["history"] = {"default_period": "daily", "periods": {}}
+                    else:
+                        if history_summary is None or history_changed or now >= next_history_summary:
+                            history_summary = history_store.build_summary(collector.disks, active_sessions=collector.sessions)
+                            next_history_summary = now + HISTORY_SUMMARY_CACHE_SECONDS
+                        payload["history"] = history_summary
                     write_state(state_file, payload)
                     next_publish = now + float(publish_interval)
             except Exception as exc:  # pragma: no cover - runtime guard on Unraid host
