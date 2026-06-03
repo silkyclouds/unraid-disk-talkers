@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.05.03a">
+<!ENTITY version "2026.06.03a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY sourceLOC "&pluginLOC;/source">
@@ -19,6 +19,10 @@
 >
 
 <CHANGES>
+###2026.06.03a
+- Keep fanotify running when Unraid mount paths briefly disappear or are remounted, instead of falling back to a persistent `fanotify unavailable: [Errno 2]` warning.
+- Re-create the fanotify monitor after transient kernel read errors so historical attribution keeps naming real talkers instead of drifting into `Other activity`.
+
 ###2026.05.03a
 - Reduced collector CPU use by caching idle `fuser` scans, caching historical summaries between refreshes, and relaxing the idle event loop.
 - Keeps the 5 second UI refresh while avoiding full per-disk host scans on every refresh.

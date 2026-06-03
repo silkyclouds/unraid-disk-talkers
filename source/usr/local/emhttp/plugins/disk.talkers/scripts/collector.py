@@ -7,6 +7,7 @@ import argparse
 import ctypes
 import ctypes.util
 import datetime as dt
+import errno
 import fcntl
 import json
 import os
@@ -128,8 +129,13 @@ FAN_Q_OVERFLOW = 0x00004000
 FAN_EVENT_MASK = FAN_OPEN | FAN_OPEN_EXEC | FAN_MODIFY | FAN_CLOSE_WRITE | FAN_CLOSE_NOWRITE
 AT_FDCWD = -100
 METADATA_STRUCT = struct.Struct("IBBHQii")
+TRANSIENT_FANOTIFY_ERRNOS = {errno.ENOENT, errno.ENODEV, errno.ENOTDIR, errno.ESTALE}
 
 os.environ["PATH"] = UNRAID_PATH + (f":{os.environ['PATH']}" if os.environ.get("PATH") else "")
+
+
+def is_transient_fanotify_error(exc: OSError) -> bool:
+    return exc.errno in TRANSIENT_FANOTIFY_ERRNOS
 
 
 def resolve_command(command: list[str]) -> list[str]:
@@ -831,12 +837,31 @@ class FanotifyMonitor:
             err = ctypes.get_errno()
             raise OSError(err, os.strerror(err))
         self.fd = fd
-        self.marked_mounts: set[str] = set()
+        self.marked_mounts: dict[str, int] = {}
         self.overflowed = False
 
+    def close(self) -> None:
+        try:
+            os.close(self.fd)
+        except OSError:
+            pass
+
     def sync(self, mounts: list[str]) -> None:
+        current_mounts = set(mounts)
+        for mount in list(self.marked_mounts):
+            if mount not in current_mounts:
+                self.marked_mounts.pop(mount, None)
+
         for mount in mounts:
-            if mount in self.marked_mounts:
+            try:
+                mount_dev = os.stat(mount).st_dev
+            except OSError as exc:
+                if is_transient_fanotify_error(exc):
+                    self.marked_mounts.pop(mount, None)
+                    continue
+                raise
+
+            if self.marked_mounts.get(mount) == mount_dev:
                 continue
             rc = self.libc.fanotify_mark(
                 self.fd,
@@ -847,8 +872,12 @@ class FanotifyMonitor:
             )
             if rc != 0:
                 err = ctypes.get_errno()
-                raise OSError(err, f"fanotify_mark({mount}) failed: {os.strerror(err)}")
-            self.marked_mounts.add(mount)
+                exc = OSError(err, f"fanotify_mark({mount}) failed: {os.strerror(err)}")
+                if is_transient_fanotify_error(exc):
+                    self.marked_mounts.pop(mount, None)
+                    continue
+                raise exc
+            self.marked_mounts[mount] = mount_dev
 
     def drain(self) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
@@ -1633,11 +1662,19 @@ class DiskTalkersCollector:
         self.monitor_error = str(exc)
         if self.monitor is None:
             return
-        try:
-            os.close(self.monitor.fd)
-        except OSError:
-            pass
+        self.monitor.close()
         self.monitor = None
+
+    def reset_monitor(self, exc: OSError | str) -> None:
+        if self.monitor is not None:
+            self.monitor.close()
+        self.monitor = None
+        self.monitor_error = str(exc)
+        try:
+            self.monitor = FanotifyMonitor()
+            self.monitor_error = ""
+        except OSError as init_exc:
+            self.monitor_error = str(init_exc)
 
     def session_record(self, disk_id: str, session: dict[str, Any], ended_at: float | None = None) -> dict[str, Any]:
         trigger = session.get("trigger_talker") or unattributed_talker()
@@ -1982,7 +2019,10 @@ class DiskTalkersCollector:
         try:
             events = self.monitor.drain()
         except OSError as exc:
-            self.disable_monitor(exc)
+            if is_transient_fanotify_error(exc):
+                self.reset_monitor(exc)
+            else:
+                self.disable_monitor(exc)
             return
 
         for event in events:
