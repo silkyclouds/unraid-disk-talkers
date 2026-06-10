@@ -228,6 +228,12 @@ def list_mounts() -> list[dict[str, str]]:
         target, source, fstype = parts
         if not target.startswith("/mnt/") or target in RESERVED_MOUNTS or target.startswith("/mnt/disks/"):
             continue
+        # Skip non-physical mounts. Docker overlay2 container rootfs (fstype "overlay")
+        # and rclone/network FUSE remotes are not real disks/pools; on ZFS hosts they
+        # would otherwise flood the inventory (one "merged" entry per container) and the
+        # event stream without ever mapping to a spun-up disk.
+        if fstype == "overlay" or fstype.startswith("fuse.") or target.startswith(("/mnt/remotes/", "/mnt/addons/")):
+            continue
         mounts.append({"target": target.rstrip("/"), "source": source, "fstype": fstype})
     return mounts
 
@@ -512,12 +518,22 @@ def natural_mount_key(mount: dict[str, Any]) -> tuple[int, Any]:
     return (2, name)
 
 
-def build_disk_inventory() -> list[dict[str, Any]]:
+def is_primary_disk_mount(target: str) -> bool:
+    # Top-level Unraid disk/pool mounts are a single path segment under /mnt
+    # (/mnt/disk1, /mnt/cache, /mnt/<pool>). Nested ZFS dataset mounts such as
+    # /mnt/disk4/medien or /mnt/ssd/appdata must still be watched for events, but
+    # their activity belongs to the parent disk/pool — not to a separate "disk".
+    return target.startswith("/mnt/") and target.count("/") == 2
+
+
+def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dict[str, Any]]:
     disks_ini = parse_disks_ini(DISKS_INI_PATH)
     md_status = parse_mdcmd_status()
     disks: list[dict[str, Any]] = []
 
-    for mount in list_mounts():
+    for mount in (mounts if mounts is not None else list_mounts()):
+        if not is_primary_disk_mount(mount["target"]):
+            continue
         name = os.path.basename(mount["target"])
         meta = disks_ini.get(name, {})
         rotational = meta.get("rotational", "0")
@@ -1701,13 +1717,18 @@ class DiskTalkersCollector:
         if not force and (now - self.last_inventory_refresh) < INVENTORY_REFRESH_SECONDS and self.disks:
             return []
 
-        disks = build_disk_inventory()
+        mounts = list_mounts()
+        disks = build_disk_inventory(mounts)
         current_states = {disk["id"]: disk["status"]["state"] for disk in disks}
         known_ids = {disk["id"] for disk in disks}
         closed_sessions: list[dict[str, Any]] = []
 
         if self.monitor is not None:
-            watch_mounts = [disk["mount"] for disk in disks]
+            # Watch every physical mount, including nested ZFS dataset mounts: fanotify
+            # FAN_MARK_MOUNT only covers its own mount, so each child dataset must be
+            # marked to capture its events. Events are then attributed back to the parent
+            # top-level disk via find_disk_for_path(self.disks).
+            watch_mounts = [mount["target"] for mount in mounts]
             watch_mounts.extend(mount for mount in FRONTDOOR_MOUNTS if os.path.isdir(mount))
             try:
                 self.monitor.sync(watch_mounts)
@@ -2001,7 +2022,12 @@ class DiskTalkersCollector:
     def record_event(self, disk: dict[str, Any], event: dict[str, Any]) -> None:
         session = self.sessions.setdefault(disk["id"], new_session(event["timestamp"]))
         talker = self.identify_talker(event["pid"], event["path"])
-        if talker["id"] == "service:User Shares (shfs)":
+        # shfs proxies the read, and very short-lived activity (e.g. media-library scans
+        # touching .plexignore across the array) often exits before /proc can classify it,
+        # leaving a bare "pid:N" talker that history collapses into "Unattributed". In both
+        # cases, try to map the path back to the container that drove it via the /mnt/user
+        # front-door activity or a currently-hot container.
+        if talker["id"] == "service:User Shares (shfs)" or talker["id"].startswith("pid:"):
             proxies = self.resolve_frontdoor_talkers(event["path"], event["timestamp"])
             if not proxies:
                 proxies = self.resolve_hot_containers_for_paths([event["path"]])

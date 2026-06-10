@@ -25,6 +25,11 @@
 >
 
 <CHANGES>
+###2026.06.10a
+- Fixed historical attribution on ZFS hosts. When each Unraid share is its own ZFS dataset, array disks were shadowed by their per-share dataset mounts (e.g. `/mnt/disk4/medien`), so spin-up activity was logged against the dataset instead of the disk and collapsed to `Other / Unattributed activity` in the history views. Activity is now attributed to the parent disk/pool, while child datasets are still watched so no events are lost.
+- Removed Docker `overlay2` container layers and rclone/network FUSE remotes from the disk list, so the page no longer fills with dozens of `merged` and remote "pools" on busy ZFS servers.
+- Recover the responsible app for very short-lived array reads (such as media-library scans touching `.plexignore`) by mapping them back through the `/mnt/user` front door instead of leaving them unattributed.
+
 ###2026.06.03a
 - Keep fanotify running when Unraid mount paths briefly disappear or are remounted, instead of falling back to a persistent `fanotify unavailable: [Errno 2]` warning.
 - Re-create the fanotify monitor after transient kernel read errors so historical attribution keeps naming real talkers instead of drifting into `Other activity`.
