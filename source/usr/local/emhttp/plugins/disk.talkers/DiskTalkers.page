@@ -2136,6 +2136,11 @@ html.dt-host-light .dt-tooltip {
     return id.includes("Unknown") || name === "unknown" || name.includes("unattributed");
   }
 
+  function isIdleTalker(talker) {
+    const name = (talker && talker.name ? talker.name : "").toLowerCase();
+    return name === "idle (spun up)";
+  }
+
   function visibleTalkerName(talker) {
     return isUnattributedTalker(talker) ? "Other activity" : (talker.name || "");
   }
@@ -2143,6 +2148,9 @@ html.dt-host-light .dt-tooltip {
   function talkerColor(talker) {
     if (!talker) {
       return "#526073";
+    }
+    if (isIdleTalker(talker)) {
+      return "#8b95a5";
     }
     if (isUnattributedTalker(talker)) {
       return "#5d6878";
@@ -2748,7 +2756,7 @@ html.dt-host-light .dt-tooltip {
               <div class="dt-history-list" style="margin-top:2px">
                 ${summarySegments.length ? summarySegments.map(renderHistoryLegendItem).join("") : '<div class="dt-empty">No clear array usage source recorded yet</div>'}
               </div>
-              <div class="dt-summary-caption">Historical usage attribution is estimated from the talkers observed in each sample window.</div>
+              <div class="dt-summary-caption">Historical usage attribution is estimated from the talkers observed in each sample window. "Idle (spun up)" means the disk was awake but nothing measurable accessed it; "Other activity" means real disk I/O happened but could not be attributed.</div>
             </div>
           </div>
         </div>

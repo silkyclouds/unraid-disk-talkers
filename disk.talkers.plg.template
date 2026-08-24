@@ -25,6 +25,12 @@
 >
 
 <CHANGES>
+###2026.08.24a
+- Split "spun up but idle" time out of "Other activity". A disk that stays awake with no observed talkers AND no real block I/O in a sample window is now recorded as "Idle (spun up)" instead of implying an unidentified app was working on it. "Other activity" now only covers windows with real disk I/O that could not be attributed.
+- Last-chance attribution: before a busy-but-unidentified window is written off as "Other activity", the collector asks `fuser` which named processes/containers are holding the disk right now and credits them instead.
+- The historical usage note now explains both labels, and "Idle (spun up)" gets its own lighter color in charts. Existing history entries are unchanged; new samples use the new labels.
+- The Main-page shortcut card now follows the active Unraid theme instead of always rendering dark.
+
 ###2026.08.20a
 - Disk Talkers now shows up under Tools even when no other plugin provides the "System Information" section: the plugin ships its own section definition, so a stock system no longer needs e.g. File Activity installed first.
 - Light-theme fix, round three: the page now reads the active Unraid theme server-side (`white`/`azure` = light) instead of guessing from the page background, which failed on themes with a transparent body and left the page in dark colors on a light host. Remaining hardcoded dark-theme text colors (modal titles, settings labels/fields, detail cards, toasts, audit links) were moved to theme variables.

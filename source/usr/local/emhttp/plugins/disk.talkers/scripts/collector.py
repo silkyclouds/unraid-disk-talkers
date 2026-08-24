@@ -109,6 +109,14 @@ UNATTRIBUTED_TALKER_ID = "service:Unattributed activity"
 UNATTRIBUTED_TALKER_NAME = "Unattributed activity"
 UNATTRIBUTED_TALKER_ICON = {"type": "fa", "value": "fa-history"}
 
+# A spun-up disk with no observed talkers AND no real block I/O in the sample window
+# is idle, not "unattributed": nothing was working on it, it just had not spun down
+# yet. Below this many bytes of I/O per sample window the time is recorded as idle.
+IDLE_TALKER_ID = "service:Idle (spun up)"
+IDLE_TALKER_NAME = "Idle (spun up)"
+IDLE_TALKER_ICON = {"type": "fa", "value": "fa-moon-o"}
+IDLE_IO_BYTES_THRESHOLD = 1024 * 1024
+
 FAN_CLOEXEC = 0x00000001
 FAN_NONBLOCK = 0x00000002
 FAN_CLASS_NOTIF = 0x00000000
@@ -397,6 +405,16 @@ def unattributed_talker(history_share: float = 1.0) -> dict[str, Any]:
         "name": UNATTRIBUTED_TALKER_NAME,
         "kind": "service",
         "icon": dict(UNATTRIBUTED_TALKER_ICON),
+        "history_share": history_share,
+    }
+
+
+def idle_talker(history_share: float = 1.0) -> dict[str, Any]:
+    return {
+        "id": IDLE_TALKER_ID,
+        "name": IDLE_TALKER_NAME,
+        "kind": "service",
+        "icon": dict(IDLE_TALKER_ICON),
         "history_share": history_share,
     }
 
@@ -1115,7 +1133,13 @@ class HistoryStore:
             conn.execute("DELETE FROM disk_spinup_sessions WHERE started_at < ?", (cutoff,))
             conn.commit()
 
-    def record_payload(self, payload: dict[str, Any], sample_seconds: float, timestamp: float | None = None) -> None:
+    def record_payload(
+        self,
+        payload: dict[str, Any],
+        sample_seconds: float,
+        timestamp: float | None = None,
+        io_bytes_by_disk: dict[str, float] | None = None,
+    ) -> None:
         if sample_seconds <= 0:
             return
         ts = int(timestamp or time.time())
@@ -1157,7 +1181,11 @@ class HistoryStore:
 
                 talkers = list(disk.get("history_talkers") or disk.get("talkers") or [])
                 if not talkers:
-                    talkers = [unattributed_talker()]
+                    # No talkers observed this window. If the disk also did (almost) no
+                    # real block I/O, it was simply spun up and idle — record that
+                    # honestly instead of blaming a phantom "Other activity".
+                    io_bytes = float((io_bytes_by_disk or {}).get(disk_id, 0.0))
+                    talkers = [idle_talker()] if io_bytes < IDLE_IO_BYTES_THRESHOLD else [unattributed_talker()]
 
                 aggregated_talkers: dict[str, dict[str, Any]] = {}
                 remaining = sample_seconds
@@ -1658,6 +1686,7 @@ class DiskTalkersCollector:
         self.pid_cache: dict[int, tuple[float, dict[str, Any]]] = {}
         self.io_prev: dict[str, tuple[float, int, int]] = {}
         self.disk_rates: dict[str, dict[str, float | str]] = {}
+        self.history_io_bytes: dict[str, float] = {}
         self.container_io_prev: dict[str, tuple[float, int, int]] = {}
         self.container_rates: dict[str, dict[str, float]] = {}
         self.pid_io_prev: dict[int, tuple[float, int, int]] = {}
@@ -1818,6 +1847,9 @@ class DiskTalkersCollector:
                 elapsed = max(now - previous_ts, 0.001)
                 read_bps = max(0.0, ((current_read - previous_read) * SECTOR_SIZE) / elapsed)
                 write_bps = max(0.0, ((current_write - previous_write) * SECTOR_SIZE) / elapsed)
+                delta_bytes = max(0, (current_read - previous_read) + (current_write - previous_write)) * SECTOR_SIZE
+                if delta_bytes > 0:
+                    self.history_io_bytes[disk["id"]] = self.history_io_bytes.get(disk["id"], 0.0) + delta_bytes
 
             self.io_prev[disk["id"]] = (now, current_read, current_write)
             rates[disk["id"]] = {
@@ -1827,6 +1859,42 @@ class DiskTalkersCollector:
                 "write_human": human_rate(write_bps),
                 }
         self.disk_rates = rates
+
+    def drain_history_io(self) -> dict[str, float]:
+        drained = self.history_io_bytes
+        self.history_io_bytes = {}
+        return drained
+
+    def enrich_history_with_fuser(self, payload: dict[str, Any], io_bytes_by_disk: dict[str, float]) -> None:
+        # Last-chance attribution before a sample window is written off as
+        # "Unattributed activity": the disk did real I/O but fanotify saw no usable
+        # events, so ask fuser who is holding the mount right now and use any named
+        # processes/containers as this window's talkers. Bare "PID N" entries are
+        # skipped — a dead PID number in history explains nothing.
+        by_id = {disk["id"]: disk for disk in self.disks}
+        now = time.time()
+        for entry in payload.get("disks", []):
+            if entry.get("kind") != "disk" or entry.get("status", {}).get("state") != "spun_up":
+                continue
+            if entry.get("history_talkers") or entry.get("talkers"):
+                continue
+            if float(io_bytes_by_disk.get(str(entry["id"]), 0.0)) < IDLE_IO_BYTES_THRESHOLD:
+                continue
+            disk = by_id.get(str(entry["id"]))
+            if disk is None:
+                continue
+            named: dict[str, dict[str, Any]] = {}
+            for row in self.fuser_rows_for_disk(disk, now):
+                talker = row.get("talker") or {}
+                talker_id = str(talker.get("id", ""))
+                if not talker_id or talker_id in SUPPRESSED_TALKER_IDS or talker_id.startswith("pid:"):
+                    continue
+                named[talker_id] = talker
+            if named:
+                share = 1.0 / len(named)
+                entry["history_talkers"] = [
+                    {**talker, "history_share": share} for talker in named.values()
+                ]
 
     def sample_container_rates(self, now: float) -> None:
         rates: dict[str, dict[str, float]] = {}
@@ -2545,7 +2613,14 @@ def run_daemon(
                     payload = collector.build_payload()
                     if history_store is not None and now >= next_history_sample:
                         sample_seconds = history_sample_interval if last_history_sample <= 0 else max(1.0, min(now - last_history_sample, history_sample_interval * 2))
-                        history_store.record_payload(payload, sample_seconds=sample_seconds, timestamp=now)
+                        io_bytes_by_disk = collector.drain_history_io()
+                        collector.enrich_history_with_fuser(payload, io_bytes_by_disk)
+                        history_store.record_payload(
+                            payload,
+                            sample_seconds=sample_seconds,
+                            timestamp=now,
+                            io_bytes_by_disk=io_bytes_by_disk,
+                        )
                         last_history_sample = now
                         next_history_sample = now + float(history_sample_interval)
                         history_changed = True

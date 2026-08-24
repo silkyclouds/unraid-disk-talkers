@@ -6,19 +6,39 @@ $cfg = @parse_ini_file('/boot/config/plugins/disk.talkers/disk.talkers.cfg') ?: 
 if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
     return;
 }
+// Same server-side theme verdict as DiskTalkers.page: "white"/"azure" are light.
+$dtShortcutTheme = strtolower($display['theme'] ?? '');
+$dtShortcutLight = in_array($dtShortcutTheme, ['white', 'azure'], true);
 ?>
 <style>
 .dt-main-shortcut {
+  --dtms-border: rgba(116, 183, 255, 0.16);
+  --dtms-bg: linear-gradient(180deg, rgba(18, 25, 34, 0.96), rgba(13, 19, 27, 0.98));
+  --dtms-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  --dtms-title: #eef2f8;
+  --dtms-sub: #98a3b5;
+  --dtms-link: #eef5ff;
+  --dtms-link-hover: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   margin: 0 0 16px;
   padding: 12px 14px;
-  border: 1px solid rgba(116, 183, 255, 0.16);
+  border: 1px solid var(--dtms-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(18, 25, 34, 0.96), rgba(13, 19, 27, 0.98));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  background: var(--dtms-bg);
+  box-shadow: var(--dtms-shadow);
+}
+
+.dt-main-shortcut.dt-light {
+  --dtms-border: #d6e0eb;
+  --dtms-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 247, 252, 0.98));
+  --dtms-shadow: 0 18px 40px rgba(16, 34, 56, 0.08);
+  --dtms-title: #1f2d3d;
+  --dtms-sub: #5b6c80;
+  --dtms-link: #1d2a38;
+  --dtms-link-hover: #10203a;
 }
 
 .dt-main-shortcut-copy {
@@ -26,7 +46,7 @@ if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
 }
 
 .dt-main-shortcut-title {
-  color: #eef2f8;
+  color: var(--dtms-title);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -35,7 +55,7 @@ if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
 
 .dt-main-shortcut-sub {
   margin-top: 4px;
-  color: #98a3b5;
+  color: var(--dtms-sub);
   font-size: 12px;
 }
 
@@ -47,7 +67,7 @@ if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
   border-radius: 999px;
   border: 1px solid rgba(116, 183, 255, 0.26);
   background: rgba(116, 183, 255, 0.12);
-  color: #eef5ff;
+  color: var(--dtms-link);
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
@@ -57,7 +77,7 @@ if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
 .dt-main-shortcut-link:hover {
   background: rgba(116, 183, 255, 0.18);
   border-color: rgba(116, 183, 255, 0.4);
-  color: #ffffff;
+  color: var(--dtms-link-hover);
   text-decoration: none;
 }
 
@@ -68,7 +88,7 @@ if (($cfg['SHOW_MAIN_SHORTCUT'] ?? '1') !== '1') {
   }
 }
 </style>
-<div id="dt-main-shortcut" class="dt-main-shortcut">
+<div id="dt-main-shortcut" class="dt-main-shortcut<?= $dtShortcutLight ? ' dt-light' : '' ?>">
   <div class="dt-main-shortcut-copy">
     <div class="dt-main-shortcut-title">Disk Talkers</div>
     <div class="dt-main-shortcut-sub">Open live talkers, spin history, power estimates, and array usage details.</div>
