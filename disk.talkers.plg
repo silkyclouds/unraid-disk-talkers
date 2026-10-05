@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.08.24b">
+<!ENTITY version "2026.10.05a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "291af17c680cd2a68c14a08546063fd0">
+<!ENTITY packageMD5 "792aefb4f229f91a0a888cf03174ae8b">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.08.24b/disk.talkers-package-2026.08.24b-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.10.05a/disk.talkers-package-2026.10.05a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,11 @@
 >
 
 <CHANGES>
+###2026.10.05a
+- New fleet overview strip at the top of the page: array disks spun up as N/M, pool count split by media type (NVMe / SSD / HDD), and unassigned device count.
+- Disks mounted outside the array through Unassigned Devices (/mnt/disks/...) now appear in their own "Unassigned devices" section with live talkers, throughput, and spin state, and are included in fanotify monitoring like pools. Spin state is read with Unraid's own sdspin without waking the drive, degrades to "unassigned" when a USB bridge answers unreliably, and measured I/O always wins over a bogus standby answer. No spin-up/down controls are offered for them and they are excluded from array history.
+- Full disk names show on hover in the Disk column.
+
 ###2026.08.24b
 - High-resolution / ultra-wide layout fix. The spin-up timeline SVG used a fixed 660-unit canvas stretched to the panel width, which blew up axis labels, points, and line thickness 3-4x on wide monitors. It now renders 1:1 at the real panel width (re-fitted on window resize), with more axis labels on wider panels.
 - The "Main usage sources" donut now scales with the panel (capped at 220px) instead of staying tiny inside a huge card, and the whole page is capped and centered on ultra-wide screens so panels keep sane proportions at any resolution.

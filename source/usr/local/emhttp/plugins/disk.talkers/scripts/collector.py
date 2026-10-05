@@ -48,6 +48,7 @@ KNOWN_COMMAND_PATHS = {
     "findmnt": "/bin/findmnt",
     "fuser": "/usr/bin/fuser",
     "mdcmd": "/usr/local/sbin/mdcmd",
+    "sdspin": "/usr/local/sbin/sdspin",
 }
 
 RESERVED_MOUNTS = {
@@ -234,7 +235,7 @@ def list_mounts() -> list[dict[str, str]]:
         if len(parts) < 3:
             continue
         target, source, fstype = parts
-        if not target.startswith("/mnt/") or target in RESERVED_MOUNTS or target.startswith("/mnt/disks/"):
+        if not target.startswith("/mnt/") or target in RESERVED_MOUNTS:
             continue
         # Skip non-physical mounts. Docker overlay2 container rootfs (fstype "overlay")
         # and rclone/network FUSE remotes are not real disks/pools; on ZFS hosts they
@@ -528,6 +529,8 @@ def read_open_paths(pid: int, limit: int = PATH_LIMIT) -> list[str]:
 
 def natural_mount_key(mount: dict[str, Any]) -> tuple[int, Any]:
     name = mount["name"]
+    if mount.get("kind") == "unassigned":
+        return (3, name)
     match = re.fullmatch(r"disk(\d+)", name)
     if match:
         return (0, int(match.group(1)))
@@ -541,7 +544,50 @@ def is_primary_disk_mount(target: str) -> bool:
     # (/mnt/disk1, /mnt/cache, /mnt/<pool>). Nested ZFS dataset mounts such as
     # /mnt/disk4/medien or /mnt/ssd/appdata must still be watched for events, but
     # their activity belongs to the parent disk/pool — not to a separate "disk".
+    # Unassigned Devices mounts live one segment below /mnt/disks and are primary
+    # too (kind "unassigned"); /mnt/disks itself is a reserved tmpfs.
+    if target.startswith("/mnt/disks/"):
+        return target.count("/") == 3
     return target.startswith("/mnt/") and target.count("/") == 2
+
+
+_UNASSIGNED_SPIN_CACHE: dict[str, tuple[float, str]] = {}
+
+
+def base_block_device(stat_device: str) -> str:
+    if stat_device.startswith("nvme"):
+        return re.sub(r"p\d+$", "", stat_device)
+    return re.sub(r"\d+$", "", stat_device)
+
+
+def block_device_rotational(stat_device: str) -> bool:
+    # Note: USB bridges often report rotational=1 for SSDs; treat this as a hint
+    # only (it merely decides whether we bother asking for the spin state).
+    try:
+        return read_text(f"/sys/block/{base_block_device(stat_device)}/queue/rotational").strip() == "1"
+    except OSError:
+        return False
+
+
+def unassigned_spin_state(stat_device: str) -> str:
+    # Unraid's own sdspin wrapper reads the drive power state without waking it:
+    # rc 0 = awake, rc 2 = standby, anything else = unknown (e.g. USB bridges
+    # that garble SG_IO — hdparm -C printed a bogus "standby" for those).
+    # Cached because the inventory refreshes every 5s; unknown degrades to
+    # "active" so an unassigned disk is never misreported as spun down.
+    now = time.time()
+    cached = _UNASSIGNED_SPIN_CACHE.get(stat_device)
+    if cached and cached[0] > now:
+        return cached[1]
+    state = "active"
+    proc = run_command(["sdspin", f"/dev/{base_block_device(stat_device)}", "status"])
+    if proc is not None:
+        if proc.returncode == 0:
+            state = "spun_up"
+        elif proc.returncode == 2:
+            state = "spun_down"
+    _UNASSIGNED_SPIN_CACHE[stat_device] = (now + 60.0, state)
+    return state
 
 
 def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dict[str, Any]]:
@@ -553,6 +599,31 @@ def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dic
         if not is_primary_disk_mount(mount["target"]):
             continue
         name = os.path.basename(mount["target"])
+
+        if mount["target"].startswith("/mnt/disks/"):
+            # Unassigned Devices mount: not part of the array and unknown to
+            # disks.ini, so state and media type are read from the device itself.
+            stat_device = os.path.basename(mount["source"]).replace("/dev/", "")
+            rotational_flag = block_device_rotational(stat_device)
+            state = unassigned_spin_state(stat_device) if rotational_flag else "active"
+            label = {"spun_down": "spun down", "spun_up": "spun up"}.get(state, "unassigned")
+            disks.append(
+                {
+                    "id": name,
+                    "name": name,
+                    "mount": mount["target"],
+                    "device": mount["source"],
+                    "source": mount["source"],
+                    "fstype": mount["fstype"],
+                    "kind": "unassigned",
+                    "status": {"state": state, "label": label},
+                    "rotational": rotational_flag,
+                    "stat_device": stat_device,
+                    "temperature_c": None,
+                    "temperature_human": "-",
+                }
+            )
+            continue
         meta = disks_ini.get(name, {})
         rotational = meta.get("rotational", "0")
         spundown = meta.get("spundown")
@@ -2503,6 +2574,14 @@ class DiskTalkersCollector:
                 if disk["kind"] == "disk":
                     history_talkers = self.history_talkers_for_disk(str(disk["id"]), talkers)
 
+            status = disk["status"]
+            if disk["kind"] == "unassigned" and status["state"] == "spun_down":
+                # USB bridges answer sdspin/hdparm unreliably; measured block I/O
+                # is ground truth, so never show a disk as spun down while it moves data.
+                rate = self.disk_rates.get(disk["id"], {})
+                if float(rate.get("read_bps") or 0.0) + float(rate.get("write_bps") or 0.0) > 0.0:
+                    status = {"state": "active", "label": "unassigned"}
+
             payload_disks.append(
                 {
                     "id": disk["id"],
@@ -2511,7 +2590,7 @@ class DiskTalkersCollector:
                     "device": disk["device"],
                     "fstype": disk["fstype"],
                     "kind": disk["kind"],
-                    "status": disk["status"],
+                    "status": status,
                     "temperature_c": disk.get("temperature_c"),
                     "temperature_human": disk.get("temperature_human", "-"),
                     "rates": self.disk_rates.get(
@@ -2529,12 +2608,32 @@ class DiskTalkersCollector:
         if self.overflow_seen:
             warnings.append("fanotify queue overflow detected")
 
+        array_disks = [disk for disk in self.disks if disk["kind"] == "disk"]
+        pools = [disk for disk in self.disks if disk["kind"] == "pool"]
+        # Counted from the payload so the awake count matches the corrected status.
+        unassigned = [disk for disk in payload_disks if disk["kind"] == "unassigned"]
+        fleet = {
+            "array_total": len(array_disks),
+            "array_spun_up": sum(1 for disk in array_disks if disk["status"]["state"] != "spun_down"),
+            "pools_total": len(pools),
+            "nvme": sum(1 for disk in pools if str(disk.get("stat_device", "")).startswith("nvme")),
+            "ssd": sum(
+                1
+                for disk in pools
+                if not disk.get("rotational") and not str(disk.get("stat_device", "")).startswith("nvme")
+            ),
+            "hdd_pools": sum(1 for disk in pools if disk.get("rotational")),
+            "unassigned_total": len(unassigned),
+            "unassigned_awake": sum(1 for disk in unassigned if disk["status"]["state"] != "spun_down"),
+        }
+
         return {
             "ok": True,
             "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "collector_mode": "fanotify+fuser",
             "mount_audit": self.build_mount_audit(),
             "array_talkers": self.build_array_summary(payload_disks),
+            "fleet": fleet,
             "warnings": warnings,
             "disks": payload_disks,
         }

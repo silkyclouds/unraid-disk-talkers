@@ -997,6 +997,63 @@ html.dt-host-light .dt-tooltip {
   margin-inline: auto;
 }
 
+.dt-fleet {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
+.dt-fleet[hidden] {
+  display: none;
+}
+
+.dt-fleet-card {
+  padding: 12px 14px;
+  border: 1px solid var(--dt-border-soft);
+  border-radius: 14px;
+  background: var(--dt-panel);
+}
+
+.dt-fleet-label {
+  color: var(--dt-text-soft);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dt-fleet-value {
+  margin-top: 6px;
+  color: var(--dt-text);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.dt-fleet-value small {
+  color: var(--dt-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dt-fleet-sub {
+  margin-top: 5px;
+  color: var(--dt-text-faint);
+  font-size: 11px;
+}
+
+.dt-section-row td {
+  padding: 16px 14px 8px;
+  color: var(--dt-text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--dt-border-soft);
+}
+
 .dt-summary-shell {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(320px, 1fr) minmax(420px, 1.35fr);
@@ -1624,6 +1681,7 @@ html.dt-host-light .dt-tooltip {
 <div class="dt-page-cap">
 <div class="dt-meta" id="dt-meta">Loading...</div>
 <div class="dt-notices" id="dt-notices" hidden></div>
+<div class="dt-fleet" id="dt-fleet" hidden></div>
 <div class="dt-toolbar">
   <div class="dt-toolbar-main">
     <div class="dt-actions">
@@ -1778,6 +1836,7 @@ html.dt-host-light .dt-tooltip {
   const auditToggle = document.getElementById("dt-audit-toggle");
   const periods = document.getElementById("dt-periods");
   const summary = document.getElementById("dt-summary");
+  const fleet = document.getElementById("dt-fleet");
   const root = document.getElementById("dt-root");
   const toast = document.getElementById("dt-toast");
   const modalShell = document.getElementById("dt-modal-shell");
@@ -2677,6 +2736,46 @@ html.dt-host-light .dt-tooltip {
     }
   }
 
+  function renderFleet(payload) {
+    const stats = payload && payload.fleet;
+    if (!stats) {
+      fleet.hidden = true;
+      fleet.innerHTML = "";
+      return;
+    }
+    const poolBits = [];
+    if (stats.nvme) { poolBits.push(`${stats.nvme} NVMe`); }
+    if (stats.ssd) { poolBits.push(`${stats.ssd} SSD`); }
+    if (stats.hdd_pools) { poolBits.push(`${stats.hdd_pools} HDD`); }
+    const cards = [
+      {
+        label: "Array disks",
+        value: `${stats.array_spun_up}<small> / ${stats.array_total}</small>`,
+        sub: "spun up right now"
+      },
+      {
+        label: "Pools",
+        value: String(stats.pools_total),
+        sub: poolBits.length ? poolBits.join(" · ") : "cache and named pools"
+      }
+    ];
+    if (stats.unassigned_total) {
+      cards.push({
+        label: "Unassigned devices",
+        value: `${stats.unassigned_awake}<small> / ${stats.unassigned_total}</small>`,
+        sub: "outside the array, awake / total"
+      });
+    }
+    fleet.innerHTML = cards.map((card) => `
+      <div class="dt-fleet-card">
+        <div class="dt-fleet-label">${escapeHtml(card.label)}</div>
+        <div class="dt-fleet-value">${card.value}</div>
+        <div class="dt-fleet-sub">${escapeHtml(card.sub)}</div>
+      </div>
+    `).join("");
+    fleet.hidden = false;
+  }
+
   function fitTimelineWidth() {
     const card = document.querySelector(".dt-timeline-card");
     if (!card) {
@@ -2692,6 +2791,7 @@ html.dt-host-light .dt-tooltip {
 
   function render(payload) {
     lastRenderedPayload = payload;
+    renderFleet(payload.ok ? payload : null);
     if (!payload.ok) {
       applyDependencyBlocked(false);
       meta.textContent = "Collector unavailable";
@@ -2811,7 +2911,11 @@ html.dt-host-light .dt-tooltip {
       </div>
     `;
 
+    const firstUnassigned = (payload.disks || []).find((disk) => disk.kind === "unassigned");
     const rows = (payload.disks || []).map((disk) => {
+      const sectionRow = firstUnassigned && disk.id === firstUnassigned.id
+        ? '<tr class="dt-section-row"><td colspan="6">Unassigned devices</td></tr>'
+        : "";
       const talkers = disk.talkers || [];
       const readRate = disk.rates && disk.rates.read_human ? disk.rates.read_human : "-";
       const writeRate = disk.rates && disk.rates.write_human ? disk.rates.write_human : "-";
@@ -2822,8 +2926,9 @@ html.dt-host-light .dt-tooltip {
         return renderTalker(disk, talker, detailKey);
       }).join("") : '<span class="dt-empty">-</span>';
       return `
+        ${sectionRow}
         <tr>
-          <td class="dt-col-disk"><div class="dt-disk">${escapeHtml(disk.name)}</div></td>
+          <td class="dt-col-disk"><div class="dt-disk" title="${escapeHtml(disk.name)}">${escapeHtml(disk.name)}</div></td>
           <td class="dt-col-status">
             <span class="dt-status ${escapeHtml(disk.status.state)}">${escapeHtml(disk.status.label)}</span>
           </td>
