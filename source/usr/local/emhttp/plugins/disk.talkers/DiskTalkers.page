@@ -2412,7 +2412,7 @@ html.dt-host-light .dt-tooltip {
     `;
   }
 
-  function renderHistoryBlock(history, activePeriod) {
+  function renderHistoryBlock(history, activePeriod, diskKind) {
     if (!history) {
       return `
         <div class="dt-history">
@@ -2426,14 +2426,14 @@ html.dt-host-light .dt-tooltip {
     return `
       <div class="dt-history">
         <div class="dt-history-head">${escapeHtml(periodLabel(activePeriod))} history</div>
-        <div class="dt-history-summary">Spun up ${escapeHtml(history.spun_up_percent_human || "0%")} · ${escapeHtml(history.spun_up_human || "-")}</div>
+        <div class="dt-history-summary">${diskKind === "pool" ? "Active" : "Spun up"} ${escapeHtml(history.spun_up_percent_human || "0%")} · ${escapeHtml(history.spun_up_human || "-")}</div>
         <div class="dt-history-layout">
           ${renderDonutChart(talkers, history.spun_up_percent_human || "0%", history.spun_up_human || "-")}
             <div class="dt-history-list">
             ${talkers.length ? talkers.map(renderHistoryLegendItem).join("") : '<div class="dt-empty">No clear usage source yet</div>'}
           </div>
         </div>
-        ${renderSpinupSessions(history.sessions || [])}
+        ${(diskKind !== "pool" || (history.sessions || []).length) ? renderSpinupSessions(history.sessions || []) : ""}
       </div>
     `;
   }
@@ -2939,7 +2939,7 @@ html.dt-host-light .dt-tooltip {
             <div class="dt-talkers">
               ${talkerHtml}
             </div>
-            ${disk.kind === "disk" ? renderHistoryBlock(historyForDisk, selectedPeriod) : ""}
+            ${disk.kind !== "unassigned" ? renderHistoryBlock(historyForDisk, selectedPeriod, disk.kind) : ""}
           </td>
         </tr>
       `;

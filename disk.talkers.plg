@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.10.05a">
+<!ENTITY version "2026.10.12a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "792aefb4f229f91a0a888cf03174ae8b">
+<!ENTITY packageMD5 "b08cd28a6b6ed40594b3f3b4276ae17e">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.10.05a/disk.talkers-package-2026.10.05a-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.10.12a/disk.talkers-package-2026.10.12a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.10.12a
+- Pools now get usage history too: each pool (ZFS, btrfs, ...) accumulates per-period history with talker attribution and shows its own "Daily/Weekly/... history" block ("Active N% - time") in the table. Array-wide aggregates (disk-hours, energy, cost, timeline, main usage sources) still count array disks only.
+- Pools report their real media type: rotational pools now show "pool / hdd" instead of always "pool / ssd", with a disks.ini multi-slot fallback for multi-device pools.
+
 ###2026.10.05a
 - New fleet overview strip at the top of the page: array disks spun up as N/M, pool count split by media type (NVMe / SSD / HDD), and unassigned device count.
 - Disks mounted outside the array through Unassigned Devices (/mnt/disks/...) now appear in their own "Unassigned devices" section with live talkers, throughput, and spin state, and are included in fanotify monitoring like pools. Spin state is read with Unraid's own sdspin without waking the drive, degrades to "unassigned" when a USB bridge answers unreliably, and measured I/O always wins over a bogus standby answer. No spin-up/down controls are offered for them and they are excluded from array history.

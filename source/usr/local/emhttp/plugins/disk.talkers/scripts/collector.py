@@ -624,7 +624,12 @@ def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dic
                 }
             )
             continue
-        meta = disks_ini.get(name, {})
+        # Multi-device pools (ZFS/btrfs) appear in disks.ini as slots named
+        # <pool>, <pool>2, <pool>3...; fall back to the first slot so rotational
+        # and spin state are known for pools whose exact name has no entry.
+        meta = disks_ini.get(name) or next(
+            (value for key, value in disks_ini.items() if key.startswith(name)), {}
+        )
         rotational = meta.get("rotational", "0")
         spundown = meta.get("spundown")
         match = re.fullmatch(r"disk(\d+)", name)
@@ -637,8 +642,11 @@ def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dic
         if temperature_c is not None and temperature_c < 0:
             temperature_c = None
 
+        # Pools report their real media type instead of a hardcoded "pool / ssd"
+        # (rotational HDD pools, e.g. ZFS mirrors of spinning disks, were mislabeled).
+        pool_label = "pool / hdd" if rotational == "1" else "pool / ssd"
         state = "active"
-        label = "pool / ssd"
+        label = pool_label
 
         if match:
             md_entry = md_status.get(int(match.group(1)), {})
@@ -649,13 +657,6 @@ def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dic
             else:
                 state = "spun_up"
                 label = "spun up"
-        elif name == "cache":
-            if rotational == "1" and spundown == "1":
-                state = "spun_down"
-                label = "spun down"
-            else:
-                state = "active"
-                label = "pool / ssd"
         elif rotational == "1" and spundown == "1":
             state = "spun_down"
             label = "spun down"
@@ -1218,7 +1219,19 @@ class HistoryStore:
         disks = payload.get("disks", [])
         with self.connect() as conn:
             for disk in disks:
-                if disk.get("kind") != "disk" or disk.get("status", {}).get("state") != "spun_up":
+                # Array disks are recorded while spun up; pools are recorded while
+                # mounted and not spun down, so they get usage history too (users
+                # asked for per-pool history, e.g. ZFS pools). Unassigned devices
+                # stay out of history. Array-wide aggregates filter by kind later.
+                kind = disk.get("kind")
+                state = disk.get("status", {}).get("state")
+                if kind == "disk":
+                    if state != "spun_up":
+                        continue
+                elif kind == "pool":
+                    if state == "spun_down":
+                        continue
+                else:
                     continue
 
                 disk_id = str(disk["id"])
@@ -1317,6 +1330,10 @@ class HistoryStore:
         disk_names = [disk["id"] for disk in disks if disk.get("kind") == "disk"]
         if not disk_names:
             return {"default_period": "daily", "periods": {}}
+        # Pools get per-device history views too, but every array-wide aggregate
+        # (disk-hours, energy, timeline, top array talkers) stays array-only.
+        pool_names = [disk["id"] for disk in disks if disk.get("kind") == "pool"]
+        array_name_set = set(disk_names)
 
         now_local = dt.datetime.now().astimezone()
         tzinfo = now_local.tzinfo or dt.timezone.utc
@@ -1386,6 +1403,8 @@ class HistoryStore:
                     if seconds <= 0:
                         continue
                     disk_totals[disk_id] = disk_totals.get(disk_id, 0.0) + seconds
+                    if disk_id not in array_name_set:
+                        continue
 
                     bucket_local = dt.datetime.fromtimestamp(int(row["bucket_start"]), tz=tzinfo)
                     point_start = floor_period_start_local(bucket_local, group)
@@ -1447,6 +1466,9 @@ class HistoryStore:
                         },
                     )
                     disk_item["seconds"] += seconds
+
+                    if disk_id not in array_name_set:
+                        continue
 
                     agg = array_talkers.setdefault(
                         talker_id,
@@ -1571,9 +1593,10 @@ class HistoryStore:
 
                 period_disks: dict[str, Any] = {}
                 total_spun_up_seconds = 0.0
-                for disk_id in disk_names:
+                for disk_id in disk_names + pool_names:
                     spun_up_seconds = min(float(disk_totals.get(disk_id, 0.0)), float(window_seconds))
-                    total_spun_up_seconds += spun_up_seconds
+                    if disk_id in array_name_set:
+                        total_spun_up_seconds += spun_up_seconds
                     talkers = normalize_talker_seconds(list(by_disk.get(disk_id, {}).values()), spun_up_seconds)
                     talkers.sort(key=lambda item: (-item["seconds"], item["name"].lower()))
                     top = []
