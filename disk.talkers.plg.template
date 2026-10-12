@@ -25,6 +25,10 @@
 >
 
 <CHANGES>
+###2026.10.12b
+- Directory opens are now monitored (FAN_ONDIR): pure tree walks such as library scans or Dynamix Cache Directories kept disks busy while staying completely invisible to the collector, ending up as "Other activity". They now show up attributed to their process.
+- `find ... -noleaf` scans are labeled "Folder Caching (cache_dirs)" — the exact signature of the Dynamix Cache Directories plugin — and other find runs show as "Directory scan (find)".
+
 ###2026.10.12a
 - Pools now get usage history too: each pool (ZFS, btrfs, ...) accumulates per-period history with talker attribution and shows its own "Daily/Weekly/... history" block ("Active N% - time") in the table. Array-wide aggregates (disk-hours, energy, cost, timeline, main usage sources) still count array disks only.
 - Pools report their real media type: rotational pools now show "pool / hdd" instead of always "pool / ssd", with a disks.ini multi-slot fallback for multi-device pools.

@@ -134,8 +134,12 @@ FAN_CLOSE_NOWRITE = 0x00000010
 FAN_OPEN = 0x00000020
 FAN_OPEN_EXEC = 0x00001000
 FAN_Q_OVERFLOW = 0x00004000
+FAN_ONDIR = 0x40000000
 
-FAN_EVENT_MASK = FAN_OPEN | FAN_OPEN_EXEC | FAN_MODIFY | FAN_CLOSE_WRITE | FAN_CLOSE_NOWRITE
+# FAN_ONDIR matters: without it fanotify reports nothing for directory opens, so
+# pure tree walks (cache_dirs' find -noleaf, library scans) hammered disks while
+# staying completely invisible and ended up as "Other activity" (mmm77's case).
+FAN_EVENT_MASK = FAN_OPEN | FAN_OPEN_EXEC | FAN_MODIFY | FAN_CLOSE_WRITE | FAN_CLOSE_NOWRITE | FAN_ONDIR
 AT_FDCWD = -100
 METADATA_STRUCT = struct.Struct("IBBHQii")
 TRANSIENT_FANOTIFY_ERRNOS = {errno.ENOENT, errno.ENODEV, errno.ENOTDIR, errno.ESTALE}
@@ -887,6 +891,23 @@ def classify_process(pid: int, resolver: Resolver) -> dict[str, Any] | None:
             "name": "Unraid WebUI",
             "kind": "service",
             "icon": {"type": "fa", "value": "fa-globe"},
+        }
+
+    if context["comm"] == "find":
+        # "find <path> -noleaf -maxdepth N" is the exact signature of the Dynamix
+        # Cache Directories plugin; naming it saves users a night of detective work.
+        if "-noleaf" in context["cmdline"]:
+            return {
+                "id": "service:Folder Caching (cache_dirs)",
+                "name": "Folder Caching (cache_dirs)",
+                "kind": "service",
+                "icon": {"type": "fa", "value": "fa-folder-open"},
+            }
+        return {
+            "id": "service:Directory scan (find)",
+            "name": "Directory scan (find)",
+            "kind": "service",
+            "icon": {"type": "fa", "value": "fa-search"},
         }
 
     if context["comm"] in {"bash", "sh"}:
