@@ -2239,8 +2239,9 @@ class DiskTalkersCollector:
             if disk is None:
                 continue
             # Opening a mount root (emhttpd polls every disk this way) is served from
-            # the dentry cache and never wakes the drive, so it is not a talker.
-            if (event.get("mask", 0) & FAN_ONDIR) and event["path"] == disk["mount"]:
+            # the dentry cache and never wakes the drive, so it is not a talker. The
+            # kernel leaves FAN_ONDIR out of event masks here, hence the path test.
+            if event["path"] == disk["mount"]:
                 continue
             self.record_event(disk, event)
 

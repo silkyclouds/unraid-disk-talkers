@@ -100,8 +100,8 @@ class CollectorReplayTest(unittest.TestCase):
         col = self.make_collector()
         col.monitor = mock.Mock(overflowed=False)
         col.monitor.drain.return_value = [
-            {"pid": 5, "path": "/mnt/cache", "timestamp": 1.0, "mask": collector.FAN_ONDIR | collector.FAN_OPEN},
-            {"pid": 7, "path": "/mnt/cache/appdata", "timestamp": 1.0, "mask": collector.FAN_ONDIR | collector.FAN_OPEN},
+            {"pid": 5, "path": "/mnt/cache", "timestamp": 1.0, "mask": collector.FAN_OPEN},
+            {"pid": 7, "path": "/mnt/cache/appdata", "timestamp": 1.0, "mask": collector.FAN_OPEN},
         ]
         col.drain_kernel_events()
         talkers = col.sessions["cache"]["talkers"]
