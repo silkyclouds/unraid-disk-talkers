@@ -2,14 +2,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name "disk.talkers">
 <!ENTITY author "meaning">
-<!ENTITY version "2026.10.12b">
+<!ENTITY version "2026.11.22a">
 <!ENTITY launch "SystemInformation/DiskTalkers">
 <!ENTITY packageVER "&version;">
-<!ENTITY packageMD5 "3804ef4482e28f94ba8d4c328cae85cb">
+<!ENTITY packageMD5 "77ed2d401aa9bbbdc47924436f208587">
 <!ENTITY packageName "&name;-package-&packageVER;-x86_64-1">
 <!ENTITY packagefile "&packageName;.txz">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/silkyclouds/unraid-disk-talkers/main/disk.talkers.plg">
-<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.10.12b/disk.talkers-package-2026.10.12b-x86_64-1.txz">
+<!ENTITY packageURL "https://github.com/silkyclouds/unraid-disk-talkers/releases/download/2026.11.22a/disk.talkers-package-2026.11.22a-x86_64-1.txz">
 <!ENTITY pluginLOC "/boot/config/plugins/&name;">
 <!ENTITY emhttpLOC "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -25,6 +25,11 @@
 >
 
 <CHANGES>
+###2026.11.22a
+- Fixed a memory leak in the collector. Pools never spin down and array disks can stay awake for weeks, so their monitoring session lived as long as the collector, and every new process that touched the disk added entries that were never removed. On a busy server the collector could reach several GB of RAM after a few weeks and use a growing share of a CPU core. Each app now keeps its 32 most recent processes, a session keeps at most 48 apps, pools and unassigned devices drop apps that left the recent window (they were already hidden), and unnamed "PID N" entries expire once the process is gone.
+- "Unraid WebUI" no longer shows up as a talker or spin-up trigger on every disk. Since 2026.10.12b, emhttpd's constant opens of each /mnt/diskN root were recorded; those are served from cache and never wake a drive, so they are now ignored.
+- The history summary, rebuilt every minute, no longer loads a whole year of rows at once. With a large history this held close to 500 MB at each pass; it now peaks under 100 MB with the same charts.
+
 ###2026.10.12b
 - Directory opens are now monitored (FAN_ONDIR): pure tree walks such as library scans or Dynamix Cache Directories kept disks busy while staying completely invisible to the collector, ending up as "Other activity". They now show up attributed to their process.
 - `find ... -noleaf` scans are labeled "Folder Caching (cache_dirs)" — the exact signature of the Dynamix Cache Directories plugin — and other find runs show as "Directory scan (find)".
