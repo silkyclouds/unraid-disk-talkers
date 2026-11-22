@@ -24,6 +24,8 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from session_limits import bounded_unique_prepend, prune_session_talkers, record_pid_event
+
 PLUGIN_NAME = "disk.talkers"
 CONFIG_PATH = f"/boot/config/plugins/{PLUGIN_NAME}/{PLUGIN_NAME}.cfg"
 DISKS_INI_PATH = "/var/local/emhttp/disks.ini"
@@ -684,13 +686,6 @@ def build_disk_inventory(mounts: list[dict[str, str]] | None = None) -> list[dic
 
     disks.sort(key=natural_mount_key)
     return disks
-
-
-def bounded_unique_prepend(items: list[Any], value: Any, limit: int) -> None:
-    if value in items:
-        items.remove(value)
-    items.insert(0, value)
-    del items[limit:]
 
 
 def parse_templates() -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
@@ -1925,6 +1920,11 @@ class DiskTalkersCollector:
             self.pid_rates.pop(pid, None)
             self.pid_open_paths_cache.pop(pid, None)
 
+    def prune_sessions(self, now: float) -> None:
+        kinds = {disk["id"]: disk["kind"] for disk in self.disks}
+        for disk_id, session in self.sessions.items():
+            prune_session_talkers(session, now, self.recent_window, kinds.get(disk_id, "disk") == "disk")
+
     def prune_frontdoor_activity(self) -> None:
         cutoff = time.time() - max(self.recent_window, PROXY_RESOLVE_WINDOW)
         for path in list(self.frontdoor_activity):
@@ -2140,10 +2140,7 @@ class DiskTalkersCollector:
         state["icon"] = talker["icon"]
         state["event_count"] += 1
         state["last_seen"] = max(state["last_seen"], timestamp)
-        state["event_pids"].add(pid)
-        state["pid_event_counts"][pid] = int(state["pid_event_counts"].get(pid, 0)) + 1
-        pid_paths = state["pid_paths"].setdefault(pid, [])
-        bounded_unique_prepend(pid_paths, path, PATH_LIMIT)
+        record_pid_event(state, pid, path, PATH_LIMIT)
         bounded_unique_prepend(state["paths"], path, PATH_LIMIT)
 
     def record_frontdoor_event(self, event: dict[str, Any]) -> None:
@@ -2240,6 +2237,10 @@ class DiskTalkersCollector:
                 continue
             disk = find_disk_for_path(event["path"], self.disks)
             if disk is None:
+                continue
+            # Opening a mount root (emhttpd polls every disk this way) is served from
+            # the dentry cache and never wakes the drive, so it is not a talker.
+            if (event.get("mask", 0) & FAN_ONDIR) and event["path"] == disk["mount"]:
                 continue
             self.record_event(disk, event)
 
@@ -2608,6 +2609,7 @@ class DiskTalkersCollector:
     def build_payload(self) -> dict[str, Any]:
         self.prune_pid_cache()
         self.prune_frontdoor_activity()
+        self.prune_sessions(time.time())
         payload_disks: list[dict[str, Any]] = []
 
         for disk in self.disks:

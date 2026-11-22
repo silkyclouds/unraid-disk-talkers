@@ -3,3 +3,4 @@ dist/
 release.env
 .DS_Store
 source/usr/local/emhttp/plugins/disk.talkers/scripts/__pycache__/
+tests/__pycache__/
