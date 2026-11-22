@@ -426,6 +426,18 @@ def idle_talker(history_share: float = 1.0) -> dict[str, Any]:
     }
 
 
+def parse_icon_json(raw_icon: str | None, cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Decode a stored talker icon, reusing earlier decodes of the same text."""
+    if not raw_icon:
+        return {"type": "fa", "value": "fa-cog"}
+    if raw_icon not in cache:
+        try:
+            cache[raw_icon] = json.loads(raw_icon)
+        except json.JSONDecodeError:
+            cache[raw_icon] = {"type": "fa", "value": "fa-cog"}
+    return dict(cache[raw_icon])
+
+
 def normalize_history_talker_identity(
     talker_id: str,
     talker_name: str,
@@ -1358,6 +1370,7 @@ class HistoryStore:
         disk_count = float(len(disk_names))
         timeline_point_counts = {"daily": 24, "weekly": 7, "monthly": 30, "yearly": 12}
 
+        icon_cache: dict[str, dict[str, Any]] = {}
         with self.connect() as conn:
             periods: dict[str, Any] = {}
             for period, window_seconds in HISTORY_PERIODS.items():
@@ -1371,7 +1384,7 @@ class HistoryStore:
                     WHERE bucket_start >= ?
                     """,
                     (since,),
-                ).fetchall()
+                )
 
                 talker_rows = conn.execute(
                     """
@@ -1380,7 +1393,7 @@ class HistoryStore:
                     WHERE bucket_start >= ?
                     """,
                     (since,),
-                ).fetchall()
+                )
 
                 temperature_rows = conn.execute(
                     """
@@ -1389,7 +1402,7 @@ class HistoryStore:
                     WHERE bucket_start >= ?
                     """,
                     (since,),
-                ).fetchall()
+                )
 
                 session_rows = conn.execute(
                     """
@@ -1399,7 +1412,7 @@ class HistoryStore:
                     ORDER BY started_at DESC
                     """,
                     (since,),
-                ).fetchall()
+                )
 
                 disk_totals: dict[str, float] = {}
                 by_disk: dict[str, dict[str, dict[str, Any]]] = {}
@@ -1456,13 +1469,7 @@ class HistoryStore:
                     if seconds <= 0:
                         continue
 
-                    icon = {"type": "fa", "value": "fa-cog"}
-                    raw_icon = row["icon_json"]
-                    if raw_icon:
-                        try:
-                            icon = json.loads(raw_icon)
-                        except json.JSONDecodeError:
-                            pass
+                    icon = parse_icon_json(row["icon_json"], icon_cache)
 
                     talker_id, talker_name, talker_kind, talker_icon = normalize_history_talker_identity(
                         str(row["talker_id"]),
@@ -1538,6 +1545,9 @@ class HistoryStore:
 
                 for row in session_rows:
                     disk_id = str(row["disk_id"])
+                    # Rows come newest first and only the newest SESSION_ROWS_LIMIT per disk are shown.
+                    if len(sessions_by_disk.get(disk_id, ())) >= SESSION_ROWS_LIMIT:
+                        continue
                     icon = {"type": "fa", "value": "fa-cog"}
                     try:
                         icon = json.loads(row["trigger_icon_json"] or "{}") or icon
